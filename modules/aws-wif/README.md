@@ -1,0 +1,101 @@
+# aws-wif — Single-Tenant OIDC Federation for Customer AWS Accounts
+
+This module creates a single-tenant OIDC federation for a customer's own
+AWS account. It is the AWS counterpart to [`gcp-wif`](../gcp-wif/).
+
+**The trust policy scopes access to exactly one murmur tenant.** The IAM
+role's `Condition` block uses `StringEquals` on the OIDC `sub` claim
+(`"write:{tenant_id}"` or `"read:{tenant_id}"`), so only tokens minted
+for that tenant can assume the role. This is the cryptographic isolation
+boundary for customer-hosted VMs — no other tenant can create, terminate,
+or inspect instances in this account.
+
+## What it creates
+
+| Resource | Purpose |
+|----------|---------|
+| `aws_iam_openid_connect_provider` | Trusts the murmur OIDC issuer for web identity federation |
+| `aws_iam_role` (creator) | Assumed via OIDC to manage EC2 instances — scoped to one tenant |
+| `aws_iam_role` (readonly) | Assumed via OIDC for read-only EC2 operations — scoped to one tenant |
+| `aws_iam_role_policy` (EC2 lifecycle) | EC2 permissions: run/terminate/start/stop/describe/tag/image/snapshot |
+| `aws_iam_role_policy` (EC2 readonly) | EC2 read permissions: describe instances/status/images |
+| `aws_iam_role` (runtime) | Assumed by VMs at boot (minimal, placeholder for future permissions) |
+| `aws_iam_instance_profile` | Instance profile wrapping the runtime role |
+
+## Thumbprint
+
+AWS requires the SHA-1 fingerprint of the OIDC issuer's TLS certificate
+chain when creating an OIDC provider. This module auto-computes it using
+the `tls_certificate` data source at plan time — no hardcoded value needed.
+
+It pins the **issuing CA** fingerprints (intermediate + root, `is_ca == true`),
+never the leaf. The issuer serves short-lived (~90-day) Google Trust Services
+leaf certs, so pinning the leaf would churn `thumbprint_list` on every renewal —
+a recurring in-place `terraform plan` diff. The CA certs (e.g. the GTS WR3
+intermediate) only rotate when GTS rotates its CA, so the pinned list stays
+stable across leaf renewals.
+
+AWS also validates OIDC issuers via its trusted CA library for certificates
+from recognized CAs (added 2023). The thumbprint is a belt-and-suspenders
+fallback. To verify the pinned CA thumbprint(s) manually:
+
+```sh
+openssl s_client -servername oidc.murmur.dev -showcerts \
+  -connect oidc.murmur.dev:443 </dev/null 2>/dev/null |
+  openssl x509 -fingerprint -sha1 -noout |
+  sed 's/://g; s/sha1 Fingerprint=//i'
+```
+
+This prints the leaf fingerprint; the chain's `-showcerts` output also includes
+the issuing CA cert(s) — those are what `thumbprint_list` pins. Compare against
+the `thumbprint_list` in `terraform plan` output (it should not contain the
+leaf fingerprint).
+
+## Audience
+
+The `oidc_audience` variable controls the expected `aud` claim in OIDC
+tokens. It defaults to `sts.amazonaws.com` (the standard AWS convention
+for web identity federation).
+
+**The audience must match.** Murmur mints tokens with an `aud` claim, and
+this value must equal it. The audience configured here and the audience in
+the minted tokens must agree — a mismatch silently prevents
+`AssumeRoleWithWebIdentity`.
+
+## Usage
+
+```hcl
+module "murmur_wif" {
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=v0.1.0"
+
+  tenant_id = "github_app/acme"
+}
+```
+
+## Inputs
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `tenant_id` | Murmur tenant identity namespace (required) | — |
+| `role_name` | IAM role name for VM creation | `"murmur-vm-creator"` |
+| `readonly_role_name` | IAM role name for read-only operations | `"murmur-readonly"` |
+| `instance_profile_name` | Instance profile name for VM runtime | `"murmur-vm"` |
+| `oidc_issuer_url` | OIDC issuer URL | `"https://oidc.murmur.dev"` |
+| `oidc_audience` | Expected aud claim | `"sts.amazonaws.com"` |
+| `ec2_permissions_boundary_arn` | Optional permissions boundary for all roles | `null` |
+| `extra_policies` | Additional policy ARNs for the creator role | `[]` |
+
+## Outputs
+
+| Output | Description |
+|--------|-------------|
+| `role_arn` | VM creator role ARN for CustomerPlacement config |
+| `readonly_role_arn` | Read-only role ARN for CustomerPlacement config |
+| `instance_profile_arn` | VM runtime instance profile ARN for EC2 RunInstances |
+| `vm_runtime_role_name` | VM runtime role name for per-environment policy attachments |
+| `oidc_provider_arn` | OIDC provider ARN for audit/trust reference |
+
+## Out of scope
+
+- **SSM policy** — For debugging access; attached per-environment by the
+  customer, not in this module.

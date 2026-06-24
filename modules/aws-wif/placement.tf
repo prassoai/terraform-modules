@@ -56,29 +56,19 @@ variable "placement_description" {
   default     = ""
 }
 
-variable "vm_spawn_grants" {
-  description = <<-EOT
-    Authorization grants attached to the VM-runtime instance-profile binding in
-    the generated placement. They control WHO may spawn agents that run as the
-    runtime instance profile — checked at spawn via the placement-sa.assume
-    permission.
+# Who may spawn agents under the VM-runtime instance profile. The binding confers
+# exactly one permission — placement-sa.assume, the only meaningful verb on such a
+# binding — so the module fixes the permission and callers choose only the
+# principals (groups/users). AWS placements have a single runtime instance
+# profile, so there is one binding and no per-identity override.
 
-    Default: every tenant member may spawn (the murmur-all-members builtin group,
-    granted placement-sa.assume). Override to scope to specific groups/users or a
-    narrower role for least privilege. Each grant must set exactly one of `role`
-    (a CatalogRole name) or `permissions` (inline verbs).
-  EOT
-  type = list(object({
-    groups       = optional(list(string), [])
-    users        = optional(list(string), [])
-    role         = optional(string)
-    permissions  = optional(list(string))
-    name_pattern = optional(string)
-  }))
-  default = [{
-    groups      = ["murmur-all-members"]
-    permissions = ["placement-sa.assume"]
-  }]
+variable "default_spawn_grant" {
+  description = "Principals allowed to spawn agents under the runtime instance profile (granted placement-sa.assume). Defaults to all tenant members."
+  type = object({
+    groups = optional(list(string), ["murmur-all-members"])
+    users  = optional(list(string), [])
+  })
+  default = {}
 }
 
 output "placement" {
@@ -100,15 +90,11 @@ output "placement" {
     service_account_bindings = [
       {
         aws_instance_profile_arn = aws_iam_instance_profile.vm.arn
-        grants = [
-          for g in var.vm_spawn_grants : {
-            groups       = g.groups
-            users        = g.users
-            name_pattern = g.name_pattern
-            role         = g.role
-            inline       = g.permissions == null ? null : { permissions = g.permissions }
-          }
-        ]
+        grants = [{
+          groups = var.default_spawn_grant.groups
+          users  = var.default_spawn_grant.users
+          inline = { permissions = ["placement-sa.assume"] }
+        }]
       }
     ]
   }

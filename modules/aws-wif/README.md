@@ -123,9 +123,10 @@ terraform output -json placement | murmur set placement customer-aws-east
 
 `account_id` is derived from the VM-creator role ARN. The VPC/subnet/security-group/region
 are not created by this module, so they are taken as inputs and used only to build
-the output. By default every tenant member may spawn under the runtime instance
-profile (`murmur-all-members` granted `placement-sa.assume`); override
-`vm_spawn_grants` to scope it.
+the output. The runtime instance-profile binding confers exactly one permission —
+`placement-sa.assume` (the only meaningful binding verb) — so you choose only the
+principals. By default every tenant member may spawn (`default_spawn_grant` ⇒ the
+`murmur-all-members` group); override `default_spawn_grant` to scope it.
 
 ## Out of scope
 

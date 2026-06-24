@@ -90,9 +90,12 @@ module "murmur_wif" {
 terraform output -json placement | murmur set placement customer-gcp-east
 ```
 
-By default every tenant member may spawn under the runtime SA
-(`murmur-all-members` granted `placement-sa.assume`). Override `vm_spawn_grants`
-to scope it. Additional placement inputs: `placement_assign_public_ip`,
+Each runtime SA's binding confers exactly one permission — `placement-sa.assume`
+(the only meaningful binding verb) — so you choose only the principals. By default
+every tenant member may spawn (`default_spawn_grant` ⇒ the `murmur-all-members`
+group). Override `default_spawn_grant` for all SAs, or `spawn_grants_by_sa` (keyed
+by SA email) to scope a privileged SA to named users while the rest stay on the
+default. Additional placement inputs: `placement_assign_public_ip`,
 `placement_description`, and `network_project` (shared from the WIF inputs).
 
 ## Notes

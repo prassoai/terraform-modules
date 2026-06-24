@@ -64,6 +64,36 @@ module "murmur_wif" {
 | `service_account_email` | VM-creator SA email — use as `wif_service_account` in the Placement |
 | `readonly_service_account_email` | Read-only SA email — use as `wif_readonly_service_account` in the Placement |
 | `vm_service_accounts` | Echo of the runtime SA emails, each mapped to a ServiceAccountBinding |
+| `placement` | **Sync-ready** Murmur Placement (protojson). `null` until `placement_name` is set |
+
+## Sync-ready placement
+
+Instead of hand-copying the WIF scalars above into a Placement, set the
+`placement_*` inputs and pipe the assembled `placement` output straight into the
+CLI:
+
+```hcl
+module "murmur_wif" {
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=v0.2.0"
+
+  project_id          = "customer-prod-12345"
+  tenant_id           = "github_app/acme"
+  vm_service_accounts = ["murmur-vm@customer-prod-12345.iam.gserviceaccount.com"]
+
+  placement_name   = "customer-gcp-east"   # must not start with "murmur-"
+  placement_zones  = ["us-east1-b", "us-east1-c"]
+  placement_subnet = "projects/customer-prod-12345/regions/us-east1/subnetworks/agents"
+}
+```
+
+```sh
+terraform output -json placement | murmur set placement customer-gcp-east
+```
+
+By default every tenant member may spawn under the runtime SA
+(`murmur-all-members` granted `placement-sa.assume`). Override `vm_spawn_grants`
+to scope it. Additional placement inputs: `placement_assign_public_ip`,
+`placement_description`, and `network_project` (shared from the WIF inputs).
 
 ## Notes
 

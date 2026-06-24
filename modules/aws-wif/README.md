@@ -94,6 +94,38 @@ module "murmur_wif" {
 | `instance_profile_arn` | VM runtime instance profile ARN for EC2 RunInstances |
 | `vm_runtime_role_name` | VM runtime role name for per-environment policy attachments |
 | `oidc_provider_arn` | OIDC provider ARN for audit/trust reference |
+| `placement` | **Sync-ready** Murmur Placement (protojson). `null` until `placement_name` is set |
+
+## Sync-ready placement
+
+Instead of hand-copying the role/profile ARNs above into a Placement, set the
+`placement_*` inputs and pipe the assembled `placement` output straight into the
+CLI:
+
+```hcl
+module "murmur_wif" {
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=v0.2.0"
+
+  tenant_id = "github_app/acme"
+  # ... existing role/profile/oidc inputs ...
+
+  placement_name              = "customer-aws-east"   # must not start with "murmur-"
+  placement_region            = "us-east-1"
+  placement_vpc_id            = "vpc-0abc123"
+  placement_subnet_ids        = ["subnet-0aaa", "subnet-0bbb"]
+  placement_security_group_id = "sg-0def456"
+}
+```
+
+```sh
+terraform output -json placement | murmur set placement customer-aws-east
+```
+
+`account_id` is derived from the VM-creator role ARN. The VPC/subnet/security-group/region
+are not created by this module, so they are taken as inputs and used only to build
+the output. By default every tenant member may spawn under the runtime instance
+profile (`murmur-all-members` granted `placement-sa.assume`); override
+`vm_spawn_grants` to scope it.
 
 ## Out of scope
 

@@ -126,7 +126,32 @@ are not created by this module, so they are taken as inputs and used only to bui
 the output. The runtime instance-profile binding confers exactly one permission —
 `placement-sa.assume` (the only meaningful binding verb) — so you choose only the
 principals. By default every tenant member may spawn (`default_spawn_grant` ⇒ the
-`murmur-all-members` group); override `default_spawn_grant` to scope it.
+`murmur-all-members` group), and so may every service-profile controller
+(`service_profiles` ⇒ `["*"]`); override `default_spawn_grant` to scope it.
+
+### Service profiles
+
+Service-profile controllers (API keys, webhook- and schedule-driven automation)
+authorize as the profile principal and carry no group membership, so a placement
+whose binding only grants groups/users can never launch VMs for them. The
+`service_profiles` attribute takes **bare profile names** — the module renders the
+`service-profile:` principals, so you never type the prefix (validation rejects
+it, in `users` too):
+
+| `service_profiles` value | Meaning |
+| ------------------------ | ------- |
+| omitted                  | all service-profile controllers may spawn (default) |
+| `[]`                     | no service-profile controller may spawn |
+| `["infra-bot", "ci"]`    | exactly these profiles' controllers may spawn |
+
+These principals match only the profile's controller credential, never agent VMs
+carrying a profile claim, so per-agent VM isolation is preserved. A human
+borrowing a profile (e.g. `murmur bake --service-profile`) authorizes as
+themselves and is covered by `groups`/`users`.
+
+Changing these inputs alters only the rendered `placement` output — no cloud IAM
+resources change. Re-sync to apply:
+`terraform output -json placement | murmur set placement <name>`.
 
 ## Out of scope
 

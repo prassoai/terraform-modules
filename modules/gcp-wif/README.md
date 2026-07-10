@@ -93,10 +93,46 @@ terraform output -json placement | murmur set placement customer-gcp-east
 Each runtime SA's binding confers exactly one permission — `placement-sa.assume`
 (the only meaningful binding verb) — so you choose only the principals. By default
 every tenant member may spawn (`default_spawn_grant` ⇒ the `murmur-all-members`
-group). Override `default_spawn_grant` for all SAs, or `spawn_grants_by_sa` (keyed
-by SA email) to scope a privileged SA to named users while the rest stay on the
-default. Additional placement inputs: `placement_assign_public_ip`,
+group), and so may every service-profile controller (`service_profiles` ⇒ `["*"]`).
+Override `default_spawn_grant` for all SAs, or `spawn_grants_by_sa` (keyed by SA
+email) to scope a privileged SA to named users or profiles while the rest stay on
+the default. Additional placement inputs: `placement_assign_public_ip`,
 `placement_description`, and `network_project` (shared from the WIF inputs).
+
+### Service profiles
+
+Service-profile controllers (API keys, webhook- and schedule-driven automation)
+authorize as the profile principal and carry no group membership, so a placement
+whose bindings only grant groups/users can never launch VMs for them. The
+`service_profiles` attribute on both grant variables takes **bare profile names**
+— the module renders the `service-profile:` principals, so you never type the
+prefix (validation rejects it, in `users` too):
+
+| `service_profiles` value | Meaning |
+| ------------------------ | ------- |
+| omitted (default grant)  | all service-profile controllers may spawn (default) |
+| `[]`                     | no service-profile controller may spawn |
+| `["infra-bot", "ci"]`    | exactly these profiles' controllers may spawn |
+
+These principals match only the profile's controller credential, never agent VMs
+carrying a profile claim, so per-agent VM isolation is preserved. A human
+borrowing a profile (e.g. `murmur bake --service-profile`) authorizes as
+themselves and is covered by `groups`/`users`. On `spawn_grants_by_sa` overrides,
+`service_profiles` defaults to `[]` — a scoped SA stays scoped unless you opt it
+in per profile:
+
+```hcl
+spawn_grants_by_sa = {
+  "murmur-vm-privileged@customer-prod-12345.iam.gserviceaccount.com" = {
+    users            = ["alice"]
+    service_profiles = ["forensics-bot"]
+  }
+}
+```
+
+Changing these inputs alters only the rendered `placement` output — no cloud IAM
+resources change. Re-sync to apply:
+`terraform output -json placement | murmur set placement <name>`.
 
 ## Notes
 

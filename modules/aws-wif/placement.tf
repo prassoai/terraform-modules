@@ -59,16 +59,45 @@ variable "placement_description" {
 # Who may spawn agents under the VM-runtime instance profile. The binding confers
 # exactly one permission — placement-sa.assume, the only meaningful verb on such a
 # binding — so the module fixes the permission and callers choose only the
-# principals (groups/users). AWS placements have a single runtime instance
-# profile, so there is one binding and no per-identity override.
+# principals (groups/users/service profiles). AWS placements have a single runtime
+# instance profile, so there is one binding and no per-identity override.
+#
+# service_profiles takes bare profile names ("*" for all). Service-profile
+# controllers — API keys, webhook- and schedule-driven automation — authorize as
+# the profile principal and carry no group membership, so without an entry here
+# they can never match a groups/users grant and cannot launch VMs on the
+# placement. These principals match only the profile's controller credential,
+# never agent VMs carrying a profile claim, so per-agent VM isolation is
+# preserved. A human borrowing a profile (e.g. `murmur bake --service-profile`)
+# authorizes as themselves and is covered by groups/users.
 
 variable "default_spawn_grant" {
-  description = "Principals allowed to spawn agents under the runtime instance profile (granted placement-sa.assume). Defaults to all tenant members."
+  description = "Principals allowed to spawn agents under the runtime instance profile (granted placement-sa.assume). Defaults to all tenant members plus all service-profile controllers. Set service_profiles = [] to restrict the placement to human principals, or list bare profile names to scope it."
   type = object({
-    groups = optional(list(string), ["murmur-all-members"])
-    users  = optional(list(string), [])
+    groups           = optional(list(string), ["murmur-all-members"])
+    users            = optional(list(string), [])
+    service_profiles = optional(list(string), ["*"])
   })
   default = {}
+
+  validation {
+    condition     = alltrue([for p in var.default_spawn_grant.service_profiles : !startswith(p, "service-profile:")])
+    error_message = "service_profiles takes bare profile names (or \"*\"), not service-profile:-prefixed principals."
+  }
+
+  validation {
+    condition     = alltrue([for u in var.default_spawn_grant.users : !startswith(u, "service-profile:")])
+    error_message = "users must not contain service-profile: principals — put bare profile names in service_profiles."
+  }
+}
+
+locals {
+  # The service-profile: principal prefix appears exactly here and nowhere else;
+  # callers only ever write bare profile names.
+  service_profile_grants = length(var.default_spawn_grant.service_profiles) > 0 ? [{
+    users  = [for p in var.default_spawn_grant.service_profiles : "service-profile:${p}"]
+    inline = { permissions = ["placement-sa.assume"] }
+  }] : []
 }
 
 output "placement" {
@@ -90,12 +119,23 @@ output "placement" {
     service_account_bindings = [
       {
         aws_instance_profile_arn = aws_iam_instance_profile.vm.arn
-        grants = [{
-          groups = var.default_spawn_grant.groups
-          users  = var.default_spawn_grant.users
-          inline = { permissions = ["placement-sa.assume"] }
-        }]
+        grants = concat(
+          # Omitted when both lists are empty: a grant must name at least one
+          # group or user, so a profiles-only configuration renders just the
+          # service-profile grant below.
+          length(var.default_spawn_grant.groups) + length(var.default_spawn_grant.users) > 0 ? [{
+            groups = var.default_spawn_grant.groups
+            users  = var.default_spawn_grant.users
+            inline = { permissions = ["placement-sa.assume"] }
+          }] : [],
+          local.service_profile_grants
+        )
       }
     ]
+  }
+
+  precondition {
+    condition     = var.placement_name == "" || length(var.default_spawn_grant.groups) + length(var.default_spawn_grant.users) + length(var.default_spawn_grant.service_profiles) > 0
+    error_message = "The runtime instance profile needs at least one spawn principal: set groups, users, or service_profiles on default_spawn_grant."
   }
 }

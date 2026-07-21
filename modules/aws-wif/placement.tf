@@ -1,29 +1,35 @@
-# ── Sync-ready Murmur Placement output ────────────────────────────────────────
+# ── Murmur Placement sync ─────────────────────────────────────────────────────
 #
 # Assembles a complete customer-managed Placement catalog resource from this
-# module's IAM outputs plus the placement-shape inputs below, so you can pipe it
-# straight into the CLI instead of hand-copying the role/profile ARNs into a
-# Placement:
+# module's IAM outputs plus the placement-shape inputs below, and manages it in
+# the murmur catalog on `terraform apply`. Setting placement_name IS the sync:
+# the module creates/updates the Placement via murmur_catalog_resource, so
+# drift (grant edits, subnet changes, rotated ARNs) shows up in `terraform
+# plan` and is pushed by apply. Empty placement_name disables the sync and the
+# output, so this module still works for federation-only setups — no murmur
+# provider block or credentials needed.
 #
-#   terraform output -json placement | murmur set placement <name>
+# The document is the protojson form of murmur.api.v1.Placement. It uses
+# snake_case field names, which protojson accepts (same names as the .proto).
 #
-# The value is the protojson form of murmur.api.v1.Placement. It uses snake_case
-# field names, which protojson accepts (same names as the .proto). The output is
-# null until placement_name is set, so this module still works for federation-only
-# setups.
+# The `placement` output remains as the document itself — for debugging, and as
+# the escape hatch for callers without direct catalog write permission:
+#
+#   terraform output -json placement | murmur set placement <name> --propose --rationale ...
 #
 # account_id is derived from the VM-creator role ARN (the roles live in the
 # customer's own account). The VPC/subnet/security-group/region are not created by
-# this module, so they are taken as inputs and only used to assemble the output.
+# this module, so they are taken as inputs and only used to assemble the document.
 
 locals {
   placement_account_id = split(":", aws_iam_role.vm_creator.arn)[4]
 }
 
 variable "placement_name" {
-  description = "Name for the generated Placement (DNS label: [a-z][a-z0-9-]{0,62}). Empty disables the placement output. Must NOT start with \"murmur-\" — that prefix is reserved for platform builtins and tenant writes of it are rejected."
+  description = "Name for the generated Placement (DNS label: [a-z][a-z0-9-]{0,62}). Empty disables the placement sync and output. Must NOT start with \"murmur-\" — that prefix is reserved for platform builtins and tenant writes of it are rejected."
   type        = string
   default     = ""
+  nullable    = false # an explicit null coerces to "" so the count guard on the sync resource is total
 }
 
 variable "placement_region" {
@@ -98,11 +104,8 @@ locals {
     users  = [for p in var.default_spawn_grant.service_profiles : "service-profile:${p}"]
     inline = { permissions = ["placement-sa.assume"] }
   }] : []
-}
 
-output "placement" {
-  description = "Sync-ready Murmur Placement (protojson). Pipe to `murmur set placement <name>`. Null until placement_name is set."
-  value = var.placement_name == "" ? null : {
+  placement = var.placement_name == "" ? null : {
     name        = var.placement_name
     substrate   = "SUBSTRATE_AWS"
     description = var.placement_description
@@ -133,6 +136,19 @@ output "placement" {
       }
     ]
   }
+}
+
+resource "murmur_catalog_resource" "placement" {
+  count   = var.placement_name != "" ? 1 : 0
+  kind    = "placement"
+  name    = var.placement_name
+  tenant  = var.tenant_id # assertion — must match the provider block's tenant
+  payload = jsonencode(local.placement)
+}
+
+output "placement" {
+  description = "The Murmur Placement document (protojson) this module syncs to the catalog. For debugging, or `murmur set placement <name> --propose` when you lack direct write permission. Null until placement_name is set."
+  value       = local.placement
 
   precondition {
     condition     = var.placement_name == "" || length(var.default_spawn_grant.groups) + length(var.default_spawn_grant.users) + length(var.default_spawn_grant.service_profiles) > 0

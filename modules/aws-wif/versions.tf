@@ -10,5 +10,9 @@ terraform {
       source  = "hashicorp/tls"
       version = ">= 4.0"
     }
+    murmur = {
+      source  = "prassoai/murmur"
+      version = "~> 0.1"
+    }
   }
 }

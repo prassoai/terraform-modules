@@ -1,27 +1,37 @@
-# ── Murmur Placement sync ─────────────────────────────────────────────────────
+# ── Sync-ready Murmur Placement output ────────────────────────────────────────
 #
 # Assembles a complete customer-managed Placement catalog resource from this
-# module's WIF outputs plus the placement-shape inputs below, and manages it in
-# the murmur catalog on `terraform apply`. Setting placement_name IS the sync:
-# the module creates/updates the Placement via murmur_catalog_resource, so
-# drift (grant edits, subnet changes, WIF scalar changes) shows up in
-# `terraform plan` and is pushed by apply. Empty placement_name disables the
-# sync and the output, so this module still works for WIF-only setups — no
-# murmur provider block or credentials needed.
+# module's WIF outputs plus the placement-shape inputs below, and emits it as the
+# `placement` output. The module writes nothing to the murmur catalog: the caller
+# owns that write, which is what keeps this module to the Google provider alone
+# and lets one placement be managed however the caller already manages catalog
+# state.
 #
-# The document is the protojson form of murmur.api.v1.Placement. It uses
-# snake_case field names, which protojson accepts (same names as the .proto).
+# Either consume the output from a murmur_catalog_resource in your own
+# configuration, so drift shows in `terraform plan` and applies with everything
+# else:
 #
-# The `placement` output remains as the document itself — for debugging, and as
-# the escape hatch for callers without direct catalog write permission:
+#   resource "murmur_catalog_resource" "placement" {
+#     kind    = "placement"
+#     name    = module.murmur_wif.placement.name
+#     tenant  = "github_app/acme"
+#     payload = jsonencode(module.murmur_wif.placement)
+#   }
 #
-#   terraform output -json placement | murmur set placement <name> --propose --rationale ...
+# or pipe it through the CLI, with no provider involved at all:
+#
+#   terraform output -json placement | murmur set placement <name>
+#
+# The value is the protojson form of murmur.api.v1.Placement. It uses snake_case
+# field names, which protojson accepts (same names as the .proto). The output is
+# null until placement_name is set, so this module still works for WIF-only
+# setups.
 
 variable "placement_name" {
-  description = "Name for the generated Placement (DNS label: [a-z][a-z0-9-]{0,62}). Empty disables the placement sync and output. Must NOT start with \"murmur-\" — that prefix is reserved for platform builtins and tenant writes of it are rejected."
+  description = "Name for the generated Placement (DNS label: [a-z][a-z0-9-]{0,62}). Empty disables the placement output. Must NOT start with \"murmur-\" — that prefix is reserved for platform builtins and tenant writes of it are rejected."
   type        = string
   default     = ""
-  nullable    = false # an explicit null coerces to "" so the count guard on the sync resource is total
+  nullable    = false # an explicit null coerces to "" so the empty-name guard on the document is total
 }
 
 variable "placement_zones" {
@@ -151,16 +161,8 @@ locals {
   }
 }
 
-resource "murmur_catalog_resource" "placement" {
-  count   = var.placement_name != "" ? 1 : 0
-  kind    = "placement"
-  name    = var.placement_name
-  tenant  = var.tenant_id # assertion — must match the provider block's tenant
-  payload = jsonencode(local.placement)
-}
-
 output "placement" {
-  description = "The Murmur Placement document (protojson) this module syncs to the catalog. For debugging, or `murmur set placement <name> --propose` when you lack direct write permission. Null until placement_name is set."
+  description = "Sync-ready Murmur Placement (protojson). Pass to a murmur_catalog_resource of your own (payload = jsonencode(...)), or pipe to `murmur set placement <name>`. Null until placement_name is set."
   value       = local.placement
 
   precondition {

@@ -64,8 +64,8 @@ the minted tokens must agree — a mismatch silently prevents
 
 ## Usage
 
-Federation-only — no murmur provider block or credentials needed (see
-[Placement sync](#placement-sync) below to also manage the Placement):
+Federation-only — the module declares only the `aws` and `tls` providers (see
+[Placement output](#placement-output) below to also emit a Placement):
 
 ```hcl
 module "murmur_wif" {
@@ -97,31 +97,17 @@ module "murmur_wif" {
 | `instance_profile_arn` | VM runtime instance profile ARN for EC2 RunInstances |
 | `vm_runtime_role_name` | VM runtime role name for per-environment policy attachments |
 | `oidc_provider_arn` | OIDC provider ARN for audit/trust reference |
-| `placement` | The Murmur Placement document (protojson) this module syncs. `null` until `placement_name` is set |
+| `placement` | Sync-ready Murmur Placement document (protojson). `null` until `placement_name` is set |
 
-## Placement sync
+## Placement output
 
-Setting `placement_name` means the module **manages the Placement in the murmur
-catalog on `terraform apply`** — it is created on the first apply and updated on
-every subsequent one. There is no separate sync step: drift (a grant edit, a
-subnet change, a rotated role ARN) shows up in `terraform plan` as an in-place
-update to `murmur_catalog_resource.placement[0]` and applies with everything
-else.
-
-Syncing requires a `provider "murmur"` block — the `tenant` is the same
-`{provider}/{org}` string as the module's `tenant_id`:
+Setting `placement_name` makes the module assemble the full Placement from its
+own role/profile/OIDC ARNs plus the `placement_*` inputs and emit it as the
+`placement` output. **The module does not write it to the murmur catalog** — it
+declares only the `aws` and `tls` providers, and the catalog write is yours to
+make, either from Terraform or from the CLI.
 
 ```hcl
-terraform {
-  required_providers {
-    murmur = { source = "prassoai/murmur", version = "~> 0.1" }
-  }
-}
-
-provider "murmur" {
-  tenant = "github_app/acme" # {provider}/{org} — same string as module tenant_id
-}
-
 module "murmur_wif" {
   source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=v0.3.0"
 
@@ -136,41 +122,70 @@ module "murmur_wif" {
 }
 ```
 
+### Managing it from Terraform
+
+Pass the output into a `murmur_catalog_resource` in **your own** configuration.
+Drift (a grant edit, a subnet change, a rotated role ARN) then shows up in
+`terraform plan` as an in-place update and applies with everything else. The
+provider and its `required_providers` entry are yours, not the module's:
+
+```hcl
+terraform {
+  required_providers {
+    murmur = { source = "prassoai/murmur", version = "~> 0.1" }
+  }
+}
+
+provider "murmur" {
+  tenant = "github_app/acme" # {provider}/{org} — same string as module tenant_id
+}
+
+resource "murmur_catalog_resource" "placement" {
+  kind    = "placement"
+  name    = module.murmur_wif.placement.name
+  tenant  = "github_app/acme" # an assertion: must match the provider block's tenant
+  payload = jsonencode(module.murmur_wif.placement)
+}
+```
+
+`payload` takes the document as JSON and is compared semantically, so
+`jsonencode` key ordering never plans a diff on its own. `tenant` is an
+assertion, not a target — the RPC tenant always comes from the provider block,
+and a mismatch fails before any RPC.
+
 **Credentials**: the provider uses `MURMUR_API_KEY` from the environment if
 non-empty, otherwise your local `gh auth token`. On a laptop there is nothing to
 configure — `gh` is the credential. In CI, export a `mur_` service-profile API
 key as `MURMUR_API_KEY`; you can additionally set `auth = "api_key"` in the
 provider block as an optional hard pin so `gh` is never probed.
 
-**Federation-only usage** (no `placement_name`) needs no `provider "murmur"`
-block and no murmur credentials — the only cost is the provider download at
-`terraform init`.
-
-**Adopting an already-piped placement**: if the placement was previously synced
-with `terraform output | murmur set` (or created any other way), the create
-fails with an instruction to import. Adopt it — no delete/recreate:
+**Adopting a placement that already exists**: if it was created any other way,
+the create fails with an instruction to import. Adopt it — no delete/recreate:
 
 ```sh
-terraform import 'module.murmur_wif.murmur_catalog_resource.placement[0]' placement/customer-aws-east
+terraform import murmur_catalog_resource.placement placement/customer-aws-east
 ```
 
-**Stopping management without deleting** (demotion): clearing `placement_name`
-removes the resource from configuration, and the plan for that is a *destroy* of
-the catalog placement. To stop managing it from terraform but keep it in the
-catalog, drop it from state first:
+### Managing it from the CLI
+
+The output is the whole document, so you can pipe it to `murmur set` and skip the
+provider entirely:
 
 ```sh
-terraform state rm 'module.murmur_wif.murmur_catalog_resource.placement[0]'
+terraform output -json placement | murmur set placement customer-aws-east
 ```
 
-then clear `placement_name`.
+Add `--propose --rationale "..."` if you lack direct catalog write permission and
+want a change request instead of a direct write.
 
-**No direct write permission?** The `placement` output is still the full
-document. Propose it as a change request instead of writing directly:
-
-```sh
-terraform output -json placement | murmur set placement customer-aws-east --propose --rationale "..."
-```
+**Pick one and stay with it.** A Terraform-managed placement is stamped
+`managed_by = "terraform"`, and thereafter a bare `murmur set` on it is
+**refused** — a hand edit declares no manager, and the server refuses any write
+declaring something other than the stored marker. The refusal names the remedy;
+`murmur set --force-ownership` writes anyway and *releases* the marker (clearing
+it), which also means the next `terraform apply` sees the claim lost and plans a
+write to re-claim it. Nothing is refused before the first Terraform apply, so the
+CLI path on its own never hits this.
 
 `account_id` is derived from the VM-creator role ARN. The VPC/subnet/security-group/region
 are not created by this module, so they are taken as inputs and used only to build
@@ -201,7 +216,8 @@ borrowing a profile (e.g. `murmur bake --service-profile`) authorizes as
 themselves and is covered by `groups`/`users`.
 
 Changing these inputs alters only the rendered placement document — no cloud IAM
-resources change. The plan shows the catalog update; `terraform apply` pushes it.
+resources change. Whichever path you sync through carries the new document to the
+catalog.
 
 ## Out of scope
 

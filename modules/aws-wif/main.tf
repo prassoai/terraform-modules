@@ -126,6 +126,10 @@ resource "aws_iam_role_policy" "readonly_ec2" {
         "ec2:DescribeInstances",
         "ec2:DescribeInstanceStatus",
         "ec2:DescribeImages",
+        # An AMI's billed storage lives on its EBS snapshots, not on the AMI:
+        # DescribeImages reports only each mapping's nominal volume size, so
+        # murmur's image-storage accounting reads FullSnapshotSizeInBytes here.
+        "ec2:DescribeSnapshots",
       ]
       Resource = "*"
     }]

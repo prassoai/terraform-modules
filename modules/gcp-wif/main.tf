@@ -106,36 +106,37 @@ resource "google_project_iam_custom_role" "vm_lifecycle" {
   description = "Minimum permissions for Murmur to manage VM lifecycle via WIF."
   permissions = [
     # Agent VM lifecycle
-    "compute.disks.create",            # create the VM boot disk
-    "compute.disks.setLabels",         # label the boot disk (tenant tagging)
-    "compute.images.useReadOnly",      # reference the source image
-    "compute.instances.create",        # create the VM
-    "compute.instances.delete",        # delete the VM
-    "compute.instances.get",           # read VM state
-    "compute.instances.list",          # list VMs (discovery + cleanup)
-    "compute.instances.setLabels",     # label the VM at creation
-    "compute.instances.setMetadata",   # set VM metadata
+    "compute.disks.create",                # create the VM boot disk
+    "compute.disks.get",                   # read bake VM boot disk source image identity
+    "compute.disks.setLabels",             # label the boot disk (tenant tagging)
+    "compute.images.useReadOnly",          # reference the source image
+    "compute.instances.create",            # create the VM
+    "compute.instances.delete",            # delete the VM
+    "compute.instances.get",               # read VM state
+    "compute.instances.list",              # list VMs (discovery + cleanup)
+    "compute.instances.setLabels",         # label the VM at creation
+    "compute.instances.setMetadata",       # set VM metadata
     "compute.instances.setServiceAccount", # attach the runtime service account
-    "compute.instances.setTags",       # set network tags at creation
-    "compute.instances.resume",        # resume a suspended VM (wake)
-    "compute.instances.start",         # start a stopped VM
-    "compute.instances.stop",          # stop a VM before imaging
-    "compute.instances.suspend",       # suspend a VM (sleep)
-    "compute.subnetworks.use",         # attach the VM NIC to a subnetwork (same project; cross-project via network_user)
-    "compute.zoneOperations.get",      # poll zonal operations
+    "compute.instances.setTags",           # set network tags at creation
+    "compute.instances.resume",            # resume a suspended VM (wake)
+    "compute.instances.start",             # start a stopped VM
+    "compute.instances.stop",              # stop a VM before imaging
+    "compute.instances.suspend",           # suspend a VM (sleep)
+    "compute.subnetworks.use",             # attach the VM NIC to a subnetwork (same project; cross-project via network_user)
+    "compute.zoneOperations.get",          # poll zonal operations
 
     # Image baking pipeline
-    "compute.disks.createSnapshot",    # snapshot the boot disk
-    "compute.globalOperations.get",    # poll global operations
-    "compute.images.create",           # create a cached image
-    "compute.images.delete",           # delete a cached image
-    "compute.images.get",              # check for a cached image
-    "compute.images.setLabels",        # label the image at creation
-    "compute.snapshots.create",        # create a snapshot (transitive with disks.createSnapshot)
-    "compute.snapshots.delete",        # delete the intermediate snapshot
-    "compute.snapshots.get",           # read snapshot state (idempotency guard on retry)
-    "compute.snapshots.setLabels",     # label the snapshot at creation
-    "compute.snapshots.useReadOnly",   # create an image from a snapshot
+    "compute.disks.createSnapshot",  # snapshot the boot disk
+    "compute.globalOperations.get",  # poll global operations
+    "compute.images.create",         # create a cached image
+    "compute.images.delete",         # delete a cached image
+    "compute.images.get",            # check for a cached image
+    "compute.images.setLabels",      # label the image at creation
+    "compute.snapshots.create",      # create a snapshot (transitive with disks.createSnapshot)
+    "compute.snapshots.delete",      # delete the intermediate snapshot
+    "compute.snapshots.get",         # read snapshot state (idempotency guard on retry)
+    "compute.snapshots.setLabels",   # label the snapshot at creation
+    "compute.snapshots.useReadOnly", # create an image from a snapshot
   ]
 }
 

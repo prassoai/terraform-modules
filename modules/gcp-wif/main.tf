@@ -114,6 +114,7 @@ resource "google_project_iam_custom_role" "vm_lifecycle" {
     "compute.instances.delete",            # delete the VM
     "compute.instances.get",               # read VM state
     "compute.instances.list",              # list VMs (discovery + cleanup)
+    "compute.machineTypes.get",            # read a machine shape's RAM (sizes the suspend snapshot Murmur bills)
     "compute.instances.setLabels",         # label the VM at creation
     "compute.instances.setMetadata",       # set VM metadata
     "compute.instances.setServiceAccount", # attach the runtime service account

@@ -276,9 +276,6 @@ resource "aws_iam_role_policy" "ec2" {
         Action = [
           "ec2:DescribeInstances",
           "ec2:DescribeInstanceStatus",
-          # An instance type's RAM sizes the hibernation swap volume a VM
-          # cannot sleep without, and the snapshot-storage meter that bills it.
-          "ec2:DescribeInstanceTypes",
           "ec2:DescribeImages",
           "ec2:DescribeSnapshots",
           "ec2:DescribeSecurityGroups",

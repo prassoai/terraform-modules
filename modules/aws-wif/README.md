@@ -80,7 +80,7 @@ the minted tokens must agree — a mismatch silently prevents
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=v0.1.0"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=main"
 
   tenant_id                   = "github_app/acme"
   placement_subnet_ids        = ["subnet-0aaa", "subnet-0bbb"]

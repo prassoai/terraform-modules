@@ -185,10 +185,10 @@ resource "aws_iam_role_policy" "ec2" {
         Resource = concat(
           [
             for subnet_id in var.placement_subnet_ids :
-            "arn:aws:ec2:*:${local.placement_account_id}:subnet/${subnet_id}"
+            "arn:aws:ec2:*:*:subnet/${subnet_id}"
           ],
           [
-            "arn:aws:ec2:*:${local.placement_account_id}:security-group/${var.placement_security_group_id}",
+            "arn:aws:ec2:*:*:security-group/${var.placement_security_group_id}",
           ],
         )
       },

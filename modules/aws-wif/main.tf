@@ -20,10 +20,12 @@ locals {
 data "aws_subnet" "placement" {
   for_each = toset(var.placement_subnet_ids)
   id       = each.value
+  region   = var.placement_region
 }
 
 data "aws_security_group" "placement" {
-  id = var.placement_security_group_id
+  id     = var.placement_security_group_id
+  region = var.placement_region
 }
 
 # ─── OIDC Provider ───────────────────────────────────────────────────────────
@@ -170,6 +172,20 @@ resource "aws_iam_role_policy" "ec2" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
+      # Existing ENIs carry their own subnet and security groups, so attaching
+      # one would bypass the placement network references below. Murmur creates
+      # a fresh primary ENI for every VM and never needs this RunInstances form.
+      {
+        Sid      = "DenyExistingNetworkInterface"
+        Effect   = "Deny"
+        Action   = "ec2:RunInstances"
+        Resource = "arn:aws:ec2:*:*:network-interface/*"
+        Condition = {
+          Null = {
+            "ec2:NetworkInterfaceID" = "false"
+          }
+        }
+      },
       # ── RunInstances: created resources (instance, volume, NIC) ────────
       # Ensures every new resource is born with murmur=true.
       {

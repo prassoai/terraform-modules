@@ -16,7 +16,9 @@ The VM-creator role applies two independent EC2 boundaries:
 
 - `RunInstances` may reference only the configured
   `placement_subnet_ids` and `placement_security_group_id`. The module resolves
-  their exact ARNs through AWS, including the distinct owners in a shared VPC.
+  their exact ARNs in `placement_region`, including the distinct owners in a
+  shared VPC. Launches that attach an existing network interface are denied
+  because its embedded network configuration would bypass those references.
 - `murmur=true` is the authorization boundary for lifecycle operations on
   existing resources, including start, stop, and terminate. Instances keep
   their original subnet and security groups when restarted.
@@ -84,6 +86,7 @@ module "murmur_wif" {
   source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=main"
 
   tenant_id                   = "github_app/acme"
+  placement_region            = "us-east-1"
   placement_subnet_ids        = ["subnet-0aaa", "subnet-0bbb"]
   placement_security_group_id = "sg-0def456"
 }
@@ -101,6 +104,7 @@ module "murmur_wif" {
 | `oidc_audience` | Expected aud claim | `"sts.amazonaws.com"` |
 | `ec2_permissions_boundary_arn` | Optional permissions boundary for all roles | `null` |
 | `extra_policies` | Additional policy ARNs for the creator role | `[]` |
+| `placement_region` | Region containing the placement network resources | required |
 | `placement_subnet_ids` | Subnets the VM-creator role may reference in `RunInstances` | required |
 | `placement_security_group_id` | Security group the VM-creator role may reference in `RunInstances` | required |
 

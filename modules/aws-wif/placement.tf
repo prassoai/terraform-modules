@@ -28,9 +28,13 @@ variable "placement_name" {
 }
 
 variable "placement_region" {
-  description = "AWS region for the placement (e.g. \"us-east-1\")."
+  description = "AWS region containing the placement subnets and security group (e.g. \"us-east-1\"). Network lookups are explicitly issued in this region."
   type        = string
-  default     = ""
+
+  validation {
+    condition     = length(var.placement_region) > 0
+    error_message = "placement_region must not be empty."
+  }
 }
 
 variable "placement_vpc_id" {

@@ -15,7 +15,8 @@ or inspect instances in this account.
 The VM-creator role applies two independent EC2 boundaries:
 
 - `RunInstances` may reference only the configured
-  `placement_subnet_ids` and `placement_security_group_id`.
+  `placement_subnet_ids` and `placement_security_group_id`. The module resolves
+  their exact ARNs through AWS, including the distinct owners in a shared VPC.
 - `murmur=true` is the authorization boundary for lifecycle operations on
   existing resources, including start, stop, and terminate. Instances keep
   their original subnet and security groups when restarted.

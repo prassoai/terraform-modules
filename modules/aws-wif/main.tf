@@ -14,6 +14,18 @@ locals {
   oidc_host = replace(var.oidc_issuer_url, "https://", "")
 }
 
+# Resolve the configured IDs through AWS instead of constructing ARNs from the
+# placement account. In a shared VPC, subnets belong to the network account
+# while the security group belongs to the participant account.
+data "aws_subnet" "placement" {
+  for_each = toset(var.placement_subnet_ids)
+  id       = each.value
+}
+
+data "aws_security_group" "placement" {
+  id = var.placement_security_group_id
+}
+
 # ─── OIDC Provider ───────────────────────────────────────────────────────────
 
 # Auto-compute the TLS thumbprint of the OIDC issuer's certificate chain.
@@ -183,12 +195,9 @@ resource "aws_iam_role_policy" "ec2" {
         Effect = "Allow"
         Action = "ec2:RunInstances"
         Resource = concat(
+          [for subnet in data.aws_subnet.placement : subnet.arn],
           [
-            for subnet_id in var.placement_subnet_ids :
-            "arn:aws:ec2:*:*:subnet/${subnet_id}"
-          ],
-          [
-            "arn:aws:ec2:*:*:security-group/${var.placement_security_group_id}",
+            data.aws_security_group.placement.arn,
           ],
         )
       },

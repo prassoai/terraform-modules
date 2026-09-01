@@ -3,9 +3,9 @@
 # This is the customer module — designed for a customer running it in their
 # own GCP project. It creates a WIF pool, OIDC provider, service account,
 # and IAM bindings that allow exactly ONE Murmur tenant to create VMs in
-# the target project. The principalSet binds to attribute.tenant/${tenant_id},
-# so only OIDC tokens carrying the matching tenant claim can impersonate the
-# service account.
+# the target project. The provider accepts only OIDC tokens carrying the
+# configured tenant claim, and service-account bindings select the required
+# read or write role.
 #
 # VM runtime identity: each VM runs as a GCE service account listed in
 # var.vm_service_accounts. These SAs map to the service_account_bindings on
@@ -35,8 +35,9 @@ resource "google_iam_workload_identity_pool_provider" "murmur" {
     "attribute.role"   = "assertion.role"
   }
 
-  # Only accept tokens from the Murmur issuer that carry a role claim.
-  attribute_condition = "assertion.iss == '${var.murmur_issuer_url}' && 'role' in assertion"
+  # This pool belongs to one tenant. Reject other tenants before they can
+  # exchange a subject token, and accept only the two roles this module binds.
+  attribute_condition = "assertion.iss == ${jsonencode(var.murmur_issuer_url)} && assertion.tenant == ${jsonencode(var.tenant_id)} && assertion.role in ['read', 'write']"
 
   oidc {
     issuer_uri = var.murmur_issuer_url
@@ -50,18 +51,12 @@ resource "google_service_account" "murmur_vm_creator" {
   description  = "Service account for murmur.dev to create agent VMs via WIF"
 }
 
-# Allow the specific Murmur tenant to impersonate this SA, restricted to
-# tokens with role=write (VM creation only).
+# Allow write-role tokens accepted by this tenant's provider to impersonate
+# the VM creator service account.
 resource "google_service_account_iam_member" "wif_binding" {
   service_account_id = google_service_account.murmur_vm_creator.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.murmur.name}/attribute.tenant/${var.tenant_id}"
-
-  condition {
-    title       = "write-role-only"
-    description = "Only allow tokens with role=write to impersonate the VM creator SA"
-    expression  = "api.getAttribute('iam.googleapis.com/attribute.role', []).hasOnly(['write'])"
-  }
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.murmur.name}/attribute.role/write"
 }
 
 # ── Read-only service account ─────────────────────────────────────────
@@ -73,17 +68,12 @@ resource "google_service_account" "murmur_readonly" {
   description  = "Service account for murmur.dev to perform read-only operations via WIF"
 }
 
-# Allow impersonation only when role=read AND tenant matches.
+# Allow read-role tokens accepted by this tenant's provider to impersonate
+# the read-only service account.
 resource "google_service_account_iam_member" "wif_readonly_binding" {
   service_account_id = google_service_account.murmur_readonly.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.murmur.name}/attribute.tenant/${var.tenant_id}"
-
-  condition {
-    title       = "read-role-only"
-    description = "Only allow tokens with role=read to impersonate the read-only SA"
-    expression  = "api.getAttribute('iam.googleapis.com/attribute.role', []).hasOnly(['read'])"
-  }
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.murmur.name}/attribute.role/read"
 }
 
 # Read-only access to the customer project. Uses the built-in

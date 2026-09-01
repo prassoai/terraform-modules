@@ -179,8 +179,10 @@ resource "aws_iam_role_policy" "ec2" {
         Action   = "ec2:RunInstances"
         Resource = "arn:aws:ec2:*:*:network-interface/*"
         Condition = {
-          Null = {
-            "ec2:NetworkInterfaceID" = "false"
+          StringNotEquals = {
+            # AWS evaluates a newly-created interface as the literal wildcard;
+            # an existing interface carries its concrete eni-* ID.
+            "ec2:NetworkInterfaceID" = "*"
           }
         }
       },

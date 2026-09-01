@@ -9,12 +9,13 @@
 #
 # The value is the protojson form of murmur.api.v1.Placement. It uses snake_case
 # field names, which protojson accepts (same names as the .proto). The output is
-# null until placement_name is set, so this module still works for federation-only
-# setups.
+# null until placement_name is set. The subnet and security-group inputs remain
+# required because they also constrain the VM-creator IAM policy.
 #
 # account_id is derived from the VM-creator role ARN (the roles live in the
 # customer's own account). The VPC/subnet/security-group/region are not created by
-# this module, so they are taken as inputs and only used to assemble the output.
+# this module. The subnet and security group also define the RunInstances IAM
+# boundary; the remaining values assemble the placement output.
 
 locals {
   placement_account_id = split(":", aws_iam_role.vm_creator.arn)[4]
@@ -39,15 +40,23 @@ variable "placement_vpc_id" {
 }
 
 variable "placement_subnet_ids" {
-  description = "Subnet IDs for agent VMs, one per AZ."
+  description = "Subnet IDs for agent VMs, one per AZ. The VM-creator IAM policy permits RunInstances to reference only these subnets."
   type        = list(string)
-  default     = []
+
+  validation {
+    condition     = length(var.placement_subnet_ids) > 0 && alltrue([for id in var.placement_subnet_ids : startswith(id, "subnet-")])
+    error_message = "placement_subnet_ids must contain at least one EC2 subnet ID."
+  }
 }
 
 variable "placement_security_group_id" {
-  description = "Security group ID for agent VMs."
+  description = "Security group ID for agent VMs. The VM-creator IAM policy permits RunInstances to reference only this security group."
   type        = string
-  default     = ""
+
+  validation {
+    condition     = startswith(var.placement_security_group_id, "sg-")
+    error_message = "placement_security_group_id must be an EC2 security group ID."
+  }
 }
 
 variable "placement_description" {

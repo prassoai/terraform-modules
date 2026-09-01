@@ -10,6 +10,20 @@ for that tenant can assume the role. This is the cryptographic isolation
 boundary for customer-hosted VMs — no other tenant can create, terminate,
 or inspect instances in this account.
 
+## Security boundaries
+
+The VM-creator role applies two independent EC2 boundaries:
+
+- `RunInstances` may reference only the configured
+  `placement_subnet_ids` and `placement_security_group_id`.
+- `murmur=true` is the authorization boundary for lifecycle operations on
+  existing resources, including start, stop, and terminate. Instances keep
+  their original subnet and security groups when restarted.
+
+Every instance, volume, and network interface created by the role must carry
+`murmur=true` from creation. The role cannot perform lifecycle operations on
+customer resources that do not carry that tag.
+
 ## What it creates
 
 | Resource | Purpose |
@@ -68,7 +82,9 @@ the minted tokens must agree — a mismatch silently prevents
 module "murmur_wif" {
   source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=v0.1.0"
 
-  tenant_id = "github_app/acme"
+  tenant_id                   = "github_app/acme"
+  placement_subnet_ids        = ["subnet-0aaa", "subnet-0bbb"]
+  placement_security_group_id = "sg-0def456"
 }
 ```
 
@@ -84,6 +100,8 @@ module "murmur_wif" {
 | `oidc_audience` | Expected aud claim | `"sts.amazonaws.com"` |
 | `ec2_permissions_boundary_arn` | Optional permissions boundary for all roles | `null` |
 | `extra_policies` | Additional policy ARNs for the creator role | `[]` |
+| `placement_subnet_ids` | Subnets the VM-creator role may reference in `RunInstances` | required |
+| `placement_security_group_id` | Security group the VM-creator role may reference in `RunInstances` | required |
 
 ## Outputs
 
@@ -121,9 +139,10 @@ module "murmur_wif" {
 terraform output -json placement | murmur set placement customer-aws-east
 ```
 
-`account_id` is derived from the VM-creator role ARN. The VPC/subnet/security-group/region
-are not created by this module, so they are taken as inputs and used only to build
-the output. The runtime instance-profile binding confers exactly one permission —
+`account_id` is derived from the VM-creator role ARN. The VPC and region are used
+to build the placement output; subnet and security-group inputs also restrict the
+VM-creator IAM policy. None are created by this module. The runtime
+instance-profile binding confers exactly one permission —
 `placement-sa.assume` (the only meaningful binding verb) — so you choose only the
 principals. By default every tenant member may spawn (`default_spawn_grant` ⇒ the
 `murmur-all-members` group), and so may every service-profile controller

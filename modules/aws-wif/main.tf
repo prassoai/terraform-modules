@@ -139,7 +139,13 @@ resource "aws_iam_role_policy" "readonly_ec2" {
 # EC2 permissions for VM lifecycle operations.
 # Analog of GCP roles/compute.instanceAdmin.v1.
 #
-# Tag-scoped: every mutating action is conditioned on the murmur=true tag.
+# Security boundaries:
+# - RunInstances may reference only the configured placement subnets and
+#   security group.
+# - Lifecycle operations on existing resources are authorized by the
+#   ec2:ResourceTag/murmur=true tag. That tag is the security boundary for
+#   start, stop, terminate, and the other mutations below.
+#
 # Resources created by RunInstances/CreateImage/CreateSnapshot must carry
 # aws:RequestTag/murmur=true at birth. Destructive actions on existing
 # resources require ec2:ResourceTag/murmur=true. This confines the assumed
@@ -169,14 +175,30 @@ resource "aws_iam_role_policy" "ec2" {
           }
         }
       },
-      # ── RunInstances: referenced resources (not created, no tag) ───────
+      # ── RunInstances: placement network resources ─────────────────────
+      # A launch may use only the subnets and security group declared in the
+      # placement produced by this module.
+      {
+        Sid    = "RunInstancesNetworkRef"
+        Effect = "Allow"
+        Action = "ec2:RunInstances"
+        Resource = concat(
+          [
+            for subnet_id in var.placement_subnet_ids :
+            "arn:aws:ec2:*:${local.placement_account_id}:subnet/${subnet_id}"
+          ],
+          [
+            "arn:aws:ec2:*:${local.placement_account_id}:security-group/${var.placement_security_group_id}",
+          ],
+        )
+      },
+      # ── RunInstances: non-network references ───────────────────────────
+      # AMIs and key pairs are not placement-network resources.
       {
         Sid    = "RunInstancesRef"
         Effect = "Allow"
         Action = "ec2:RunInstances"
         Resource = [
-          "arn:aws:ec2:*:*:subnet/*",
-          "arn:aws:ec2:*:*:security-group/*",
           "arn:aws:ec2:*:*:key-pair/*",
           "arn:aws:ec2:*:*:image/*",
         ]
@@ -259,9 +281,9 @@ resource "aws_iam_role_policy" "ec2" {
       # Post-creation tag updates Murmur makes to its own resources. Only
       # allows tagging resources already carrying murmur=true.
       {
-        Sid    = "TagMurmurResources"
-        Effect = "Allow"
-        Action = "ec2:CreateTags"
+        Sid      = "TagMurmurResources"
+        Effect   = "Allow"
+        Action   = "ec2:CreateTags"
         Resource = "*"
         Condition = {
           StringEquals = {

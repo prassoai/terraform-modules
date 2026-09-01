@@ -14,6 +14,18 @@ locals {
   oidc_host = replace(var.oidc_issuer_url, "https://", "")
 }
 
+# Resolve the configured IDs through AWS instead of constructing ARNs from the
+# placement account. In a shared VPC, subnets belong to the network account
+# while the security group belongs to the participant account.
+data "aws_subnet" "placement" {
+  for_each = toset(var.placement_subnet_ids)
+  id       = each.value
+}
+
+data "aws_security_group" "placement" {
+  id = var.placement_security_group_id
+}
+
 # ─── OIDC Provider ───────────────────────────────────────────────────────────
 
 # Auto-compute the TLS thumbprint of the OIDC issuer's certificate chain.
@@ -139,7 +151,13 @@ resource "aws_iam_role_policy" "readonly_ec2" {
 # EC2 permissions for VM lifecycle operations.
 # Analog of GCP roles/compute.instanceAdmin.v1.
 #
-# Tag-scoped: every mutating action is conditioned on the murmur=true tag.
+# Security boundaries:
+# - RunInstances may reference only the configured placement subnets and
+#   security group.
+# - Lifecycle operations on existing resources are authorized by the
+#   ec2:ResourceTag/murmur=true tag. That tag is the security boundary for
+#   start, stop, terminate, and the other mutations below.
+#
 # Resources created by RunInstances/CreateImage/CreateSnapshot must carry
 # aws:RequestTag/murmur=true at birth. Destructive actions on existing
 # resources require ec2:ResourceTag/murmur=true. This confines the assumed
@@ -152,6 +170,22 @@ resource "aws_iam_role_policy" "ec2" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
+      # Existing ENIs carry their own subnet and security groups, so attaching
+      # one would bypass the placement network references below. Murmur creates
+      # a fresh primary ENI for every VM and never needs this RunInstances form.
+      {
+        Sid      = "DenyExistingNetworkInterface"
+        Effect   = "Deny"
+        Action   = "ec2:RunInstances"
+        Resource = "arn:aws:ec2:*:*:network-interface/*"
+        Condition = {
+          StringNotEquals = {
+            # AWS evaluates a newly-created interface as the literal wildcard;
+            # an existing interface carries its concrete eni-* ID.
+            "ec2:NetworkInterfaceID" = "*"
+          }
+        }
+      },
       # ── RunInstances: created resources (instance, volume, NIC) ────────
       # Ensures every new resource is born with murmur=true.
       {
@@ -169,14 +203,27 @@ resource "aws_iam_role_policy" "ec2" {
           }
         }
       },
-      # ── RunInstances: referenced resources (not created, no tag) ───────
+      # ── RunInstances: placement network resources ─────────────────────
+      # A launch may use only the subnets and security group declared in the
+      # placement produced by this module.
+      {
+        Sid    = "RunInstancesNetworkRef"
+        Effect = "Allow"
+        Action = "ec2:RunInstances"
+        Resource = concat(
+          [for subnet in data.aws_subnet.placement : subnet.arn],
+          [
+            data.aws_security_group.placement.arn,
+          ],
+        )
+      },
+      # ── RunInstances: non-network references ───────────────────────────
+      # AMIs and key pairs are not placement-network resources.
       {
         Sid    = "RunInstancesRef"
         Effect = "Allow"
         Action = "ec2:RunInstances"
         Resource = [
-          "arn:aws:ec2:*:*:subnet/*",
-          "arn:aws:ec2:*:*:security-group/*",
           "arn:aws:ec2:*:*:key-pair/*",
           "arn:aws:ec2:*:*:image/*",
         ]
@@ -259,9 +306,9 @@ resource "aws_iam_role_policy" "ec2" {
       # Post-creation tag updates Murmur makes to its own resources. Only
       # allows tagging resources already carrying murmur=true.
       {
-        Sid    = "TagMurmurResources"
-        Effect = "Allow"
-        Action = "ec2:CreateTags"
+        Sid      = "TagMurmurResources"
+        Effect   = "Allow"
+        Action   = "ec2:CreateTags"
         Resource = "*"
         Condition = {
           StringEquals = {

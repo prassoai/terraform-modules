@@ -16,9 +16,10 @@ The VM-creator role applies two independent EC2 boundaries:
 
 - `RunInstances` may reference only the configured
   `placement_subnet_ids` and `placement_security_group_id`. The module resolves
-  their exact ARNs in `placement_region`, including the distinct owners in a
-  shared VPC. Launches that attach an existing network interface are denied
-  because its embedded network configuration would bypass those references.
+  their exact ARNs through the supplied AWS provider, including the distinct
+  owners in a shared VPC. That provider must target `placement_region`.
+  Launches that attach an existing network interface are denied because its
+  embedded network configuration would bypass those references.
 - `murmur=true` is the authorization boundary for lifecycle operations on
   existing resources, including start, stop, and terminate. Instances keep
   their original subnet and security groups when restarted.
@@ -82,8 +83,16 @@ the minted tokens must agree — a mismatch silently prevents
 ## Usage
 
 ```hcl
+provider "aws" {
+  alias  = "murmur_placement"
+  region = "us-east-1"
+}
+
 module "murmur_wif" {
   source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=main"
+  providers = {
+    aws = aws.murmur_placement
+  }
 
   tenant_id                   = "github_app/acme"
   placement_region            = "us-east-1"
@@ -91,6 +100,10 @@ module "murmur_wif" {
   placement_security_group_id = "sg-0def456"
 }
 ```
+
+The AWS provider passed to this module must be configured for
+`placement_region`; Terraform provider configurations are selected by the
+calling module and cannot be derived dynamically from an input variable.
 
 ## Inputs
 

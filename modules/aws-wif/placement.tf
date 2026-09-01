@@ -28,7 +28,7 @@ variable "placement_name" {
 }
 
 variable "placement_region" {
-  description = "AWS region containing the placement subnets and security group (e.g. \"us-east-1\"). Network lookups are explicitly issued in this region."
+  description = "AWS region containing the placement subnets and security group (e.g. \"us-east-1\"). The AWS provider passed to this module must target the same region."
   type        = string
 
   validation {

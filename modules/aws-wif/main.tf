@@ -20,12 +20,10 @@ locals {
 data "aws_subnet" "placement" {
   for_each = toset(var.placement_subnet_ids)
   id       = each.value
-  region   = var.placement_region
 }
 
 data "aws_security_group" "placement" {
-  id     = var.placement_security_group_id
-  region = var.placement_region
+  id = var.placement_security_group_id
 }
 
 # ─── OIDC Provider ───────────────────────────────────────────────────────────

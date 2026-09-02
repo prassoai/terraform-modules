@@ -69,6 +69,12 @@ variable "placement_description" {
   default     = ""
 }
 
+variable "map_migrated_tag_value" {
+  description = "AWS MAP cost-allocation tag value stamped as map-migrated=<value> on every EC2 resource this placement creates. Set for placements in accounts under Prasso's payer so MAP credits accrue. Empty for customer-owned accounts."
+  type        = string
+  default     = ""
+}
+
 # Who may spawn agents under the VM-runtime instance profile. The binding confers
 # exactly one permission — placement-sa.assume, the only meaningful verb on such a
 # binding — so the module fixes the permission and callers choose only the
@@ -119,16 +125,19 @@ output "placement" {
     name        = var.placement_name
     substrate   = "SUBSTRATE_AWS"
     description = var.placement_description
-    aws = {
-      account_id        = local.placement_account_id
-      region            = var.placement_region
-      vpc_id            = var.placement_vpc_id
-      subnet_ids        = var.placement_subnet_ids
-      role_arn          = aws_iam_role.vm_creator.arn
-      oidc_provider_arn = aws_iam_openid_connect_provider.murmur.arn
-      readonly_role_arn = aws_iam_role.readonly.arn
-      security_group_id = var.placement_security_group_id
-    }
+    aws = merge(
+      {
+        account_id        = local.placement_account_id
+        region            = var.placement_region
+        vpc_id            = var.placement_vpc_id
+        subnet_ids        = var.placement_subnet_ids
+        role_arn          = aws_iam_role.vm_creator.arn
+        oidc_provider_arn = aws_iam_openid_connect_provider.murmur.arn
+        readonly_role_arn = aws_iam_role.readonly.arn
+        security_group_id = var.placement_security_group_id
+      },
+      var.map_migrated_tag_value != "" ? { map_migrated_tag_value = var.map_migrated_tag_value } : {}
+    )
     service_account_bindings = [
       {
         aws_instance_profile_arn = aws_iam_instance_profile.vm.arn

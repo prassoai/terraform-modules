@@ -114,7 +114,7 @@ resource "google_project_iam_custom_role" "vm_lifecycle" {
     "compute.instances.stop",              # stop a VM before imaging
     "compute.instances.suspend",           # suspend a VM (sleep)
     "compute.subnetworks.use",             # attach the VM NIC to a subnetwork (same project; cross-project via network_user)
-    "compute.zoneOperations.get",          # poll zonal operations
+    "compute.zoneOperations.get",          # read zonal operations, by poll and by zoneOperations.wait long poll (same permission)
 
     # Image baking pipeline
     "compute.disks.createSnapshot",  # snapshot the boot disk

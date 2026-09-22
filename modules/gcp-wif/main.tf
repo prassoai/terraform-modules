@@ -125,7 +125,8 @@ resource "google_project_iam_custom_role" "vm_lifecycle" {
     "compute.images.setLabels",      # label the image at creation
     "compute.snapshots.create",      # create a snapshot (transitive with disks.createSnapshot)
     "compute.snapshots.delete",      # delete the intermediate snapshot
-    "compute.snapshots.get",         # read snapshot state (idempotency guard on retry)
+    "compute.snapshots.get",         # read snapshot state (idempotency guard on retry; owner label before restoring a preserved disk)
+    "compute.snapshots.list",        # enumerate the tenant's snapshots by label when the tenant is deleted
     "compute.snapshots.setLabels",   # label the snapshot at creation
     "compute.snapshots.useReadOnly", # create an image from a snapshot
   ]

@@ -122,6 +122,7 @@ resource "google_project_iam_custom_role" "vm_lifecycle" {
     "compute.images.create",         # create a cached image
     "compute.images.delete",         # delete a cached image
     "compute.images.get",            # check for a cached image
+    "compute.images.list",           # enumerate the tenant's images by label when the tenant is deleted
     "compute.images.setLabels",      # label the image at creation
     "compute.snapshots.create",      # create a snapshot (transitive with disks.createSnapshot)
     "compute.snapshots.delete",      # delete the intermediate snapshot

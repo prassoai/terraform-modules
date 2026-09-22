@@ -158,7 +158,7 @@ resource "aws_iam_role_policy" "readonly_ec2" {
 #   ec2:ResourceTag/murmur=true tag. That tag is the security boundary for
 #   start, stop, terminate, and the other mutations below.
 #
-# Resources created by RunInstances/CreateImage/CreateSnapshot must carry
+# Resources created by RunInstances/CreateImage/CreateSnapshot/CopyImage must carry
 # aws:RequestTag/murmur=true at birth. Destructive actions on existing
 # resources require ec2:ResourceTag/murmur=true. This confines the assumed
 # credential to murmur's own resources — it cannot touch anything else in
@@ -280,8 +280,27 @@ resource "aws_iam_role_policy" "ec2" {
           }
         }
       },
+      # ── Copy images across regions with murmur tag ─────────────────────
+      # CopyImage's resource-level permissions apply to the destination
+      # image and its snapshots, which must be born with murmur=true. The
+      # source image is a request parameter, not an IAM resource; reading
+      # it needs only ec2:DescribeImages from ReadOnly below.
+      {
+        Sid    = "CopyImageCreate"
+        Effect = "Allow"
+        Action = "ec2:CopyImage"
+        Resource = [
+          "arn:aws:ec2:*:*:image/*",
+          "arn:aws:ec2:*:*:snapshot/*",
+        ]
+        Condition = {
+          StringEquals = {
+            "aws:RequestTag/murmur" = "true"
+          }
+        }
+      },
       # ── Tag resources during creation ──────────────────────────────────
-      # RunInstances, CreateImage, and CreateSnapshot with
+      # RunInstances, CreateImage, CreateSnapshot, and CopyImage with
       # TagSpecifications require ec2:CreateTags. Scoped via
       # ec2:CreateAction so this cannot be used for standalone tagging
       # of arbitrary resources.
@@ -298,7 +317,7 @@ resource "aws_iam_role_policy" "ec2" {
         ]
         Condition = {
           StringEquals = {
-            "ec2:CreateAction" = ["RunInstances", "CreateImage", "CreateSnapshot"]
+            "ec2:CreateAction" = ["RunInstances", "CreateImage", "CreateSnapshot", "CopyImage"]
           }
         }
       },

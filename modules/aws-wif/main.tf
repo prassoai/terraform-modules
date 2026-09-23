@@ -281,18 +281,35 @@ resource "aws_iam_role_policy" "ec2" {
         }
       },
       # ── Copy images across regions with murmur tag ─────────────────────
-      # CopyImage's resource-level permissions apply to the destination
-      # image and its snapshots, which must be born with murmur=true. The
-      # source image is a request parameter, not an IAM resource; reading
-      # it needs only ec2:DescribeImages from ReadOnly below.
+      # CopyImage authorizes three resources: the source image, the
+      # destination image, and the destination's backing snapshots. Every
+      # output must be born with murmur=true, evaluated per resource type —
+      # a request tagging only the image leaves the snapshot resource
+      # without aws:RequestTag and is refused outright. CopyImage supports
+      # ec2:Owner on images but not ec2:ResourceTag, so the source is
+      # confined by ownership: only this account's own AMIs (murmur's bakes)
+      # may be copied, never an AMI shared or published from outside.
+      # IfExists keeps the destination image, which has no owner until the
+      # copy exists, from failing the check the source must pass.
       {
-        Sid    = "CopyImageCreate"
-        Effect = "Allow"
-        Action = "ec2:CopyImage"
-        Resource = [
-          "arn:aws:ec2:*:*:image/*",
-          "arn:aws:ec2:*:*:snapshot/*",
-        ]
+        Sid      = "CopyImageImages"
+        Effect   = "Allow"
+        Action   = "ec2:CopyImage"
+        Resource = "arn:aws:ec2:*:*:image/*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestTag/murmur" = "true"
+          }
+          StringEqualsIfExists = {
+            "ec2:Owner" = "$${aws:PrincipalAccount}"
+          }
+        }
+      },
+      {
+        Sid      = "CopyImageSnapshots"
+        Effect   = "Allow"
+        Action   = "ec2:CopyImage"
+        Resource = "arn:aws:ec2:*:*:snapshot/*"
         Condition = {
           StringEquals = {
             "aws:RequestTag/murmur" = "true"

@@ -100,6 +100,7 @@ resource "google_project_iam_custom_role" "vm_lifecycle" {
     "compute.disks.get",                   # read bake VM boot disk source image identity
     "compute.disks.setLabels",             # label the boot disk (tenant tagging)
     "compute.images.useReadOnly",          # reference the source image
+    "compute.advice.capacity",             # rank Spot zones by uptime estimate
     "compute.instances.create",            # create the VM
     "compute.instances.delete",            # delete the VM
     "compute.instances.get",               # read VM state

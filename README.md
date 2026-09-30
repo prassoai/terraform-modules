@@ -27,10 +27,10 @@ Modules are consumed via a **git source**, pinned to a release tag with
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=v0.1.0"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=<release-tag>"
 
   project_id = "customer-prod-12345"
-  tenant_id  = "github_app/acme"
+  storage_namespaces = ["github_app/acme"]
   vm_service_accounts = [
     "murmur-vm@customer-prod-12345.iam.gserviceaccount.com",
   ]
@@ -39,13 +39,13 @@ module "murmur_wif" {
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=v0.1.0"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=<release-tag>"
 
-  tenant_id = "github_app/acme"
+  storage_namespaces = ["github_app/acme"]
 }
 ```
 
-Always pin to a tag (`?ref=v0.1.0`), never to a branch. The double slash
+Always pin to a tag (`?ref=<release-tag>`), never to a branch. The double slash
 (`//`) separates the repository from the module subdirectory.
 
 > **Private-repo access.** While this repository is private, `terraform init`

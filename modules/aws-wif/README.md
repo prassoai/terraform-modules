@@ -3,10 +3,10 @@
 This module creates a single-tenant OIDC federation for a customer's own
 AWS account. It is the AWS counterpart to [`gcp-wif`](../gcp-wif/).
 
-**The trust policy scopes access to exactly one murmur tenant.** The IAM
+**The trust policy scopes access to the listed storage namespaces of one Murmur tenant.** The IAM
 role's `Condition` block uses `StringEquals` on the OIDC `sub` claim
-(`"write:{tenant_id}"` or `"read:{tenant_id}"`), so only tokens minted
-for that tenant can assume the role. This is the cryptographic isolation
+(`"write:{namespace}"` or `"read:{namespace}"`), so only tokens minted
+for a listed namespace can assume the role. This is the cryptographic isolation
 boundary for customer-hosted VMs — no other tenant can create, terminate,
 or inspect instances in this account.
 
@@ -89,12 +89,12 @@ provider "aws" {
 }
 
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=main"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=<release-tag>"
   providers = {
     aws = aws.murmur_placement
   }
 
-  tenant_id                   = "github_app/acme"
+  storage_namespaces         = ["github_app/acme"]
   placement_region            = "us-east-1"
   placement_subnet_ids        = ["subnet-0aaa", "subnet-0bbb"]
   placement_security_group_id = "sg-0def456"
@@ -109,7 +109,7 @@ calling module and cannot be derived dynamically from an input variable.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `tenant_id` | Murmur tenant identity namespace (required) | — |
+| `storage_namespaces` | Explicit storage namespaces of one Murmur tenant (required, nonempty) | — |
 | `role_name` | IAM role name for VM creation | `"murmur-vm-creator"` |
 | `readonly_role_name` | IAM role name for read-only operations | `"murmur-readonly"` |
 | `instance_profile_name` | Instance profile name for VM runtime | `"murmur-vm"` |
@@ -140,9 +140,9 @@ CLI:
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=v0.2.0"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=<release-tag>"
 
-  tenant_id = "github_app/acme"
+  storage_namespaces = ["github_app/acme"]
   # ... existing role/profile/oidc inputs ...
 
   placement_name              = "customer-aws-east"   # must not start with "murmur-"

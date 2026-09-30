@@ -4,10 +4,10 @@ This module creates a single-tenant [Workload Identity Federation][wif]
 configuration in a customer's own GCP project. It is the GCP counterpart to
 [`aws-wif`](../aws-wif/).
 
-**The principalSet binds the service account to exactly one Murmur tenant.**
-The `roles/iam.workloadIdentityUser` binding targets
-`principalSet://.../attribute.tenant/${tenant_id}`, so only OIDC tokens
-carrying that tenant's claim can impersonate the VM-creator service account.
+**The provider admits only the listed storage namespaces of one Murmur tenant.**
+Its condition checks the token's `assertion.tenant` against that list.
+The `roles/iam.workloadIdentityUser` bindings select read or write roles
+for admitted tokens.
 This is the cryptographic isolation boundary for customer-hosted VMs — no
 other tenant can create, delete, or inspect instances in this project.
 
@@ -28,10 +28,10 @@ other tenant can create, delete, or inspect instances in this project.
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=v0.1.0"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=<release-tag>"
 
   project_id = "customer-prod-12345"
-  tenant_id  = "github_app/acme"
+  storage_namespaces = ["github_app/acme"]
 
   # VM runtime service accounts the WIF SA must be able to attach at create
   # time. List every SA referenced by the placement's service_account_bindings.
@@ -46,7 +46,7 @@ module "murmur_wif" {
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `project_id` | GCP project ID where VMs are created (required) | — |
-| `tenant_id` | Murmur tenant identity namespace (required) | — |
+| `storage_namespaces` | Explicit storage namespaces of one Murmur tenant (required, nonempty) | — |
 | `vm_service_accounts` | VM runtime SA emails the WIF SA may attach (required) | — |
 | `murmur_issuer_url` | OIDC issuer URL | `"https://oidc.murmur.dev"` |
 | `pool_id` | WIF pool ID | `"murmur-pool"` |
@@ -74,10 +74,10 @@ CLI:
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=v0.2.0"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=<release-tag>"
 
   project_id          = "customer-prod-12345"
-  tenant_id           = "github_app/acme"
+  storage_namespaces = ["github_app/acme"]
   vm_service_accounts = ["murmur-vm@customer-prod-12345.iam.gserviceaccount.com"]
 
   placement_name   = "customer-gcp-east"   # must not start with "murmur-"
@@ -136,7 +136,7 @@ resources change. Re-sync to apply:
 
 ## Notes
 
-- **`tenant_id`** comes from `murmur tenant whoami` or the dashboard.
+- **`storage_namespaces`** must list only namespaces reserved for this tenant. During preparation, include the current login-based namespace and its verified provider-subject destination; remove the old entry only after its callers retire.
 - The `murmurVmCreator` custom role is intentionally tight. If a future Murmur
   release needs an additional compute permission, upgrade to the module version
   (`?ref=`) that includes it.

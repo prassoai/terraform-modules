@@ -4,8 +4,8 @@
 # │ This module creates a single-tenant OIDC federation for a customer's own  │
 # │ AWS account. The IAM trust policy scopes access to exactly one murmur     │
 # │ tenant via StringEquals on the sub claim. This is the cryptographic       │
-# │ isolation boundary: only OIDC tokens with sub="write:{tenant_id}" or     │
-# │ sub="read:{tenant_id}" can assume the respective roles.                  │
+# │ isolation boundary: only OIDC tokens with sub="write:{namespace}" or     │
+# │ sub="read:{namespace}" for a listed namespace can assume these roles.   │
 # └─────────────────────────────────────────────────────────────────────────────┘
 
 locals {
@@ -66,7 +66,7 @@ resource "aws_iam_openid_connect_provider" "murmur" {
 # AWS IAM trust policies can only condition on "sub" and "aud" — not custom
 # claims like "role". Murmur encodes the role in the sub claim as
 # "{role}:{tenant}" (e.g. "write:github_app/acme"). The trust uses
-# StringEquals with the exact sub value for single-tenant + role scoping.
+# StringEquals with exact sub values for one tenant's namespaces and role.
 resource "aws_iam_role" "vm_creator" {
   name                 = var.role_name
   permissions_boundary = var.ec2_permissions_boundary_arn
@@ -82,7 +82,7 @@ resource "aws_iam_role" "vm_creator" {
       Condition = {
         StringEquals = {
           "${local.oidc_host}:aud" = var.oidc_audience
-          "${local.oidc_host}:sub" = "write:${var.tenant_id}"
+          "${local.oidc_host}:sub" = [for namespace in var.storage_namespaces : "write:${namespace}"]
         }
       }
     }]
@@ -113,7 +113,7 @@ resource "aws_iam_role" "readonly" {
       Condition = {
         StringEquals = {
           "${local.oidc_host}:aud" = var.oidc_audience
-          "${local.oidc_host}:sub" = "read:${var.tenant_id}"
+          "${local.oidc_host}:sub" = [for namespace in var.storage_namespaces : "read:${namespace}"]
         }
       }
     }]

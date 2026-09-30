@@ -2,10 +2,10 @@
 #
 # This is the customer module — designed for a customer running it in their
 # own GCP project. It creates a WIF pool, OIDC provider, service account,
-# and IAM bindings that allow exactly ONE Murmur tenant to create VMs in
-# the target project. The provider accepts only OIDC tokens carrying the
-# configured tenant claim, and service-account bindings select the required
-# read or write role.
+# and IAM bindings that allow one Murmur tenant's explicitly named storage
+# namespaces to create VMs in the target project. The provider accepts only
+# OIDC tokens carrying a configured namespace; service-account bindings
+# select the required read or write role.
 #
 # VM runtime identity: each VM runs as a GCE service account listed in
 # var.vm_service_accounts. These SAs map to the service_account_bindings on
@@ -35,9 +35,9 @@ resource "google_iam_workload_identity_pool_provider" "murmur" {
     "attribute.role"   = "assertion.role"
   }
 
-  # This pool belongs to one tenant. Reject other tenants before they can
+  # This pool belongs to one tenant. Reject other namespaces before they can
   # exchange a subject token, and accept only the two roles this module binds.
-  attribute_condition = "assertion.iss == ${jsonencode(var.murmur_issuer_url)} && assertion.tenant == ${jsonencode(var.tenant_id)} && assertion.role in ['read', 'write']"
+  attribute_condition = "assertion.iss == ${jsonencode(var.murmur_issuer_url)} && assertion.tenant in ${jsonencode(var.storage_namespaces)} && assertion.role in ['read', 'write']"
 
   oidc {
     issuer_uri = var.murmur_issuer_url
@@ -57,6 +57,12 @@ resource "google_service_account_iam_member" "wif_binding" {
   service_account_id = google_service_account.murmur_vm_creator.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.murmur.name}/attribute.role/write"
+
+  # A caller pinned to a tenant principal must retain it until this role
+  # principal is installed during an online module upgrade.
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # ── Read-only service account ─────────────────────────────────────────
@@ -74,6 +80,10 @@ resource "google_service_account_iam_member" "wif_readonly_binding" {
   service_account_id = google_service_account.murmur_readonly.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.murmur.name}/attribute.role/read"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # Read-only access to the customer project. Uses the built-in

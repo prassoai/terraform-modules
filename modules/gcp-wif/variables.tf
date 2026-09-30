@@ -3,9 +3,14 @@ variable "project_id" {
   type        = string
 }
 
-variable "tenant_id" {
-  description = "Murmur tenant identity namespace (e.g. \"github_app/acme\"). Obtained from `murmur tenant whoami` or the dashboard."
-  type        = string
+variable "storage_namespaces" {
+  description = "Storage namespaces of one Murmur tenant authorized to use this placement. Include both its current and reserved destination namespaces during migration; remove the old one only after its callers retire."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.storage_namespaces) > 0 && length(distinct(var.storage_namespaces)) == length(var.storage_namespaces) && alltrue([for namespace in var.storage_namespaces : can(regex("^[a-z_]+/[^/]+$", namespace))])
+    error_message = "storage_namespaces must contain distinct, nonempty provider/name namespaces."
+  }
 }
 
 variable "murmur_issuer_url" {

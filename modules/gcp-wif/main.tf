@@ -118,6 +118,8 @@ resource "google_project_iam_custom_role" "vm_lifecycle" {
 
     # Image baking pipeline
     "compute.disks.createSnapshot",  # snapshot the boot disk
+    "compute.disks.delete",          # discard the scratch disk that hydrates a new image into a zone
+    "compute.disks.list",            # find hydration disks abandoned by a worker that died mid-bake
     "compute.globalOperations.get",  # poll global operations
     "compute.images.create",         # create a cached image
     "compute.images.delete",         # delete a cached image

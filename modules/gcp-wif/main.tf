@@ -118,6 +118,7 @@ resource "google_project_iam_custom_role" "vm_lifecycle" {
 
     # Image baking pipeline
     "compute.disks.createSnapshot",  # snapshot the boot disk
+    "compute.disks.list",            # find the hydration disks a dead worker abandoned
     "compute.globalOperations.get",  # poll global operations
     "compute.images.create",         # create a cached image
     "compute.images.delete",         # delete a cached image
@@ -137,6 +138,40 @@ resource "google_project_iam_member" "vm_lifecycle" {
   project = var.project_id
   role    = google_project_iam_custom_role.vm_lifecycle.id
   member  = "serviceAccount:${google_service_account.murmur_vm_creator.email}"
+}
+
+# After baking an image, Murmur pre-warms ("hydrates") it in each zone agents
+# spawn in, so the first VM off a fresh image boots at full speed instead of
+# streaming the image on demand. Hydration creates a throwaway disk named
+# murmur-hydrate-<uuid> per zone and deletes it again.
+#
+# That is the only disk Murmur ever deletes — every other disk in this project
+# is a live agent's boot disk. So the delete names what it may delete rather
+# than being granted over the project, and it is a separate role because an IAM
+# condition attaches to a binding, not to a permission. Without this role bakes
+# still succeed; they lose the pre-warm and leave the scratch disks behind.
+resource "google_project_iam_custom_role" "hydration_cleanup" {
+  project     = var.project_id
+  role_id     = "murmurVmCreatorHydrationCleanup"
+  title       = "Murmur VM Creator hydration cleanup"
+  description = "Delete the throwaway disks image hydration created, and nothing else."
+  permissions = ["compute.disks.delete"]
+}
+
+resource "google_project_iam_member" "hydration_cleanup" {
+  project = var.project_id
+  role    = google_project_iam_custom_role.hydration_cleanup.id
+  member  = "serviceAccount:${google_service_account.murmur_vm_creator.email}"
+
+  # IAM conditions are restricted CEL: resource.name supports startsWith,
+  # endsWith, extract, == and !=, and nothing else — a regex is rejected at
+  # apply with "undeclared reference to 'matches'". extract is what spans the
+  # zone, which a prefix cannot; the binding is already project-scoped, so the
+  # name only has to say which disks within it.
+  condition {
+    title      = "hydration_disks_only"
+    expression = "resource.type == 'compute.googleapis.com/Disk' && resource.name.extract('/disks/{disk}').startsWith('murmur-hydrate-')"
+  }
 }
 
 # Additional roles beyond the custom role, for customers who need them.

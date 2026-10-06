@@ -282,26 +282,35 @@ resource "aws_iam_role_policy" "ec2" {
       },
       # ── Copy images across regions with murmur tag ─────────────────────
       # CopyImage authorizes three resources: the source image, the
-      # destination image, and the destination's backing snapshots. Every
-      # output must be born with murmur=true, evaluated per resource type —
-      # a request tagging only the image leaves the snapshot resource
-      # without aws:RequestTag and is refused outright. CopyImage supports
-      # ec2:Owner on images but not ec2:ResourceTag, so the source is
-      # confined by ownership: only this account's own AMIs (murmur's bakes)
-      # may be copied, never an AMI shared or published from outside.
-      # IfExists keeps the destination image, which has no owner until the
-      # copy exists, from failing the check the source must pass.
+      # destination image, and the destination's backing snapshots. The
+      # request's tags reach only the resources it creates, so the source
+      # image carries no aws:RequestTag and is authorized on its own terms:
+      # by ownership, so only this account's own AMIs — murmur's bakes — may
+      # be copied, never an AMI shared or published from outside. The
+      # destination image and snapshots must be born with murmur=true,
+      # evaluated per resource type: a request tagging only the image leaves
+      # the snapshot resource without aws:RequestTag and is refused outright.
+      # A destination has no owner until the copy exists, so the source
+      # statement never admits an untagged copy.
       {
-        Sid      = "CopyImageImages"
+        Sid      = "CopyImageSource"
+        Effect   = "Allow"
+        Action   = "ec2:CopyImage"
+        Resource = "arn:aws:ec2:*:*:image/*"
+        Condition = {
+          StringEquals = {
+            "ec2:Owner" = "$${aws:PrincipalAccount}"
+          }
+        }
+      },
+      {
+        Sid      = "CopyImageDestination"
         Effect   = "Allow"
         Action   = "ec2:CopyImage"
         Resource = "arn:aws:ec2:*:*:image/*"
         Condition = {
           StringEquals = {
             "aws:RequestTag/murmur" = "true"
-          }
-          StringEqualsIfExists = {
-            "ec2:Owner" = "$${aws:PrincipalAccount}"
           }
         }
       },

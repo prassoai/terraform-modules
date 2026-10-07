@@ -99,6 +99,7 @@ resource "google_project_iam_custom_role" "vm_lifecycle" {
     "compute.disks.create",                # create the VM boot disk
     "compute.disks.get",                   # read bake VM boot disk source image identity
     "compute.disks.setLabels",             # label the boot disk (tenant tagging)
+    "compute.disks.resize",                # auto-expand: grow the boot disk past the base image floor
     "compute.images.useReadOnly",          # reference the source image
     "compute.instances.create",            # create the VM
     "compute.instances.delete",            # delete the VM

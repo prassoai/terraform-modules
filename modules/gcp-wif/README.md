@@ -20,6 +20,7 @@ other tenant can create, delete, or inspect instances in this project.
 | `google_service_account` (creator) | Impersonated by `role=write` tokens to manage VMs |
 | `google_service_account` (readonly) | Impersonated by `role=read` tokens for read-only operations |
 | `google_project_iam_custom_role` (`murmurVmCreator`) | Minimum VM-lifecycle + image-bake permissions |
+| `google_project_iam_custom_role` (`murmurVmCreatorHydrationCleanup`) | `compute.disks.delete`, bound under a condition limiting it to `murmur-hydrate-*` scratch disks |
 | `google_project_iam_member` (readonly) | `roles/compute.viewer` for the read-only SA |
 | `google_project_iam_member` (network_user) | `roles/compute.networkUser` on the shared-VPC host (optional) |
 | `google_service_account_iam_member` (vm_sa_user) | `roles/iam.serviceAccountUser` on each VM runtime SA |

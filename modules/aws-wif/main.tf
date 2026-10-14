@@ -242,6 +242,7 @@ resource "aws_iam_role_policy" "ec2" {
           "ec2:StartInstances",
           "ec2:StopInstances",
           "ec2:ModifyInstanceAttribute",
+          "ec2:ModifyVolume",
           "ec2:CreateImage",
           "ec2:CreateSnapshot",
           "ec2:DeregisterImage",
@@ -328,6 +329,10 @@ resource "aws_iam_role_policy" "ec2" {
           "ec2:DescribeInstanceTypes",
           "ec2:DescribeImages",
           "ec2:DescribeSnapshots",
+          # Boot-disk auto-expand reads a volume's current size and watches its
+          # modification converge (ModifyVolume above).
+          "ec2:DescribeVolumes",
+          "ec2:DescribeVolumesModifications",
           "ec2:DescribeSecurityGroups",
           "ec2:DescribeSubnets",
         ]

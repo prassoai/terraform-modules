@@ -26,7 +26,8 @@ variables {
 # it on a murmur instance lets the VM creator launch inside the placement
 # network boundary RunInstances enforces and then swap the VM into any security
 # group in the VPC. Murmur never calls it, so no Allow statement may match it,
-# whether by name or by wildcard. Boot-disk resize uses ec2:ModifyVolume, which
+# whether by name or by wildcard. IAM matches actions case-insensitively and
+# expands both * and ?, so the check does too. Boot-disk resize uses ec2:ModifyVolume, which
 # must survive any tightening here.
 run "vm_creator_cannot_change_instance_security_groups" {
   command = apply
@@ -36,7 +37,7 @@ run "vm_creator_cannot_change_instance_security_groups" {
       for statement in jsondecode(aws_iam_role_policy.ec2.policy).Statement :
       statement.Effect == "Allow" && anytrue([
         for action in flatten([statement.Action]) :
-        can(regex("^${replace(action, "*", ".*")}$", "ec2:ModifyInstanceAttribute"))
+        can(regex("^${replace(replace(lower(action), "*", ".*"), "?", ".")}$", "ec2:modifyinstanceattribute"))
       ])
     ])
     error_message = "No Allow statement may grant ec2:ModifyInstanceAttribute: it would let the VM creator move a VM out of its placement security group."
@@ -44,7 +45,7 @@ run "vm_creator_cannot_change_instance_security_groups" {
   assert {
     condition = anytrue([
       for statement in jsondecode(aws_iam_role_policy.ec2.policy).Statement :
-      statement.Effect == "Allow" && contains(flatten([statement.Action]), "ec2:ModifyVolume")
+      statement.Effect == "Allow" && contains([for action in flatten([statement.Action]) : lower(action)], "ec2:modifyvolume")
     ])
     error_message = "Boot-disk resize needs ec2:ModifyVolume."
   }

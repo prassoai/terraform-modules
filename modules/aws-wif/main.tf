@@ -233,7 +233,10 @@ resource "aws_iam_role_policy" "ec2" {
       # carrying ec2:ResourceTag/murmur=true. CreateImage and
       # CreateSnapshot appear here for the source instance/volume;
       # their output resources (image, snapshot) are authorized by
-      # CreateImageSnapshotTag below.
+      # CreateImageSnapshotTag below. ec2:ModifyInstanceAttribute is
+      # deliberately absent: AWS authorizes it against the instance alone,
+      # so its --groups form could move a VM into any security group and
+      # escape the placement network boundary RunInstances enforces.
       {
         Sid    = "MurmurResourceMutate"
         Effect = "Allow"
@@ -241,7 +244,6 @@ resource "aws_iam_role_policy" "ec2" {
           "ec2:TerminateInstances",
           "ec2:StartInstances",
           "ec2:StopInstances",
-          "ec2:ModifyInstanceAttribute",
           "ec2:ModifyVolume",
           "ec2:CreateImage",
           "ec2:CreateSnapshot",

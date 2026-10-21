@@ -19,7 +19,8 @@ other tenant can create, delete, or inspect instances in this project.
 | `google_iam_workload_identity_pool_provider` | OIDC provider; maps `tenant` and `role` claims |
 | `google_service_account` (creator) | Impersonated by `role=write` tokens to manage VMs |
 | `google_service_account` (readonly) | Impersonated by `role=read` tokens for read-only operations |
-| `google_project_iam_custom_role` (`murmurVmCreator`) | Minimum VM-lifecycle + image-bake permissions |
+| `google_project_iam_custom_role` (`murmurVmCreator`) | Project-wide reads Murmur needs: get/list, operation polling, subnet use, base-image use |
+| `google_project_iam_custom_role` (`murmurVmCreatorScoped`) | Every create, change, boot, snapshot and delete of instances, disks, images and snapshots, bound under a condition limiting it to `murmur-*`-named resources |
 | `google_project_iam_custom_role` (`murmurVmCreatorHydrationCleanup`) | `compute.disks.delete`, bound under a condition limiting it to `murmur-hydrate-*` scratch disks |
 | `google_project_iam_member` (readonly) | `roles/compute.viewer` for the read-only SA |
 | `google_project_iam_member` (network_user) | `roles/compute.networkUser` on the shared-VPC host (optional) |
@@ -141,5 +142,9 @@ resources change. Re-sync to apply:
 - The `murmurVmCreator` custom role is intentionally tight. If a future Murmur
   release needs an additional compute permission, upgrade to the module version
   (`?ref=`) that includes it.
+- Murmur names every instance, disk, image and snapshot it creates `murmur-*`,
+  and can change, start, stop, delete or snapshot only resources named that
+  way. Don't give your own resources in this project names that start with
+  `murmur-`.
 
 [wif]: https://cloud.google.com/iam/docs/workload-identity-federation

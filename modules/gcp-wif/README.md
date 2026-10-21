@@ -11,6 +11,21 @@ carrying that tenant's claim can impersonate the VM-creator service account.
 This is the cryptographic isolation boundary for customer-hosted VMs — no
 other tenant can create, delete, or inspect instances in this project.
 
+## Recommended: a dedicated project
+
+Give murmur a GCP project of its own and pass it as `project_id`. The
+VM-creator service account's roles are granted at project scope, so in a
+project that holds only murmur's VMs, images, and disks, there is nothing of
+yours for it to reach. Projects are cheap and quick to create, which makes this
+the simplest isolation boundary GCP offers.
+
+The dedicated project can still use your network: set `network_project` to
+your shared-VPC host and point `placement_subnet` at one of its subnets.
+
+On AWS a separate account is often impractical, so [`aws-wif`](../aws-wif/)
+confines the VM-creator role to resources tagged `murmur=true` instead. On GCP,
+the dedicated project is the recommended route.
+
 ## What it creates
 
 | Resource | Purpose |
@@ -31,13 +46,13 @@ other tenant can create, delete, or inspect instances in this project.
 module "murmur_wif" {
   source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=v0.1.0"
 
-  project_id = "customer-prod-12345"
+  project_id = "acme-murmur-vms"
   tenant_id  = "github_app/acme"
 
   # VM runtime service accounts the WIF SA must be able to attach at create
   # time. List every SA referenced by the placement's service_account_bindings.
   vm_service_accounts = [
-    "murmur-vm@customer-prod-12345.iam.gserviceaccount.com",
+    "murmur-vm@acme-murmur-vms.iam.gserviceaccount.com",
   ]
 }
 ```
@@ -46,7 +61,7 @@ module "murmur_wif" {
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `project_id` | GCP project ID where VMs are created (required) | — |
+| `project_id` | GCP project ID where VMs are created; use one [dedicated to murmur](#recommended-a-dedicated-project) (required) | — |
 | `tenant_id` | Murmur tenant identity namespace (required) | — |
 | `vm_service_accounts` | VM runtime SA emails the WIF SA may attach (required) | — |
 | `murmur_issuer_url` | OIDC issuer URL | `"https://oidc.murmur.dev"` |
@@ -77,13 +92,13 @@ CLI:
 module "murmur_wif" {
   source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=v0.2.0"
 
-  project_id          = "customer-prod-12345"
+  project_id          = "acme-murmur-vms"
   tenant_id           = "github_app/acme"
-  vm_service_accounts = ["murmur-vm@customer-prod-12345.iam.gserviceaccount.com"]
+  vm_service_accounts = ["murmur-vm@acme-murmur-vms.iam.gserviceaccount.com"]
 
   placement_name   = "customer-gcp-east"   # must not start with "murmur-"
   placement_zones  = ["us-east1-b", "us-east1-c"]
-  placement_subnet = "projects/customer-prod-12345/regions/us-east1/subnetworks/agents"
+  placement_subnet = "projects/acme-murmur-vms/regions/us-east1/subnetworks/agents"
 }
 ```
 
@@ -124,7 +139,7 @@ in per profile:
 
 ```hcl
 spawn_grants_by_sa = {
-  "murmur-vm-privileged@customer-prod-12345.iam.gserviceaccount.com" = {
+  "murmur-vm-privileged@acme-murmur-vms.iam.gserviceaccount.com" = {
     users            = ["alice"]
     service_profiles = ["forensics-bot"]
   }

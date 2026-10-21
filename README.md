@@ -29,10 +29,10 @@ Modules are consumed via a **git source**, pinned to a release tag with
 module "murmur_wif" {
   source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=v0.1.0"
 
-  project_id = "customer-prod-12345"
+  project_id = "acme-murmur-vms"
   tenant_id  = "github_app/acme"
   vm_service_accounts = [
-    "murmur-vm@customer-prod-12345.iam.gserviceaccount.com",
+    "murmur-vm@acme-murmur-vms.iam.gserviceaccount.com",
   ]
 }
 ```

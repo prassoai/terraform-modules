@@ -113,7 +113,12 @@ group), and so may every service-profile controller (`service_profiles` ⇒ `["*
 Override `default_spawn_grant` for all SAs, or `spawn_grants_by_sa` (keyed by SA
 email) to scope a privileged SA to named users or profiles while the rest stay on
 the default. Additional placement inputs: `placement_assign_public_ip`,
-`placement_description`, and `network_project` (shared from the WIF inputs).
+`placement_description`, `placement_oauth_scopes`, and `network_project` (shared
+from the WIF inputs). `placement_oauth_scopes` defaults to
+`["https://www.googleapis.com/auth/cloud-platform"]`; supply a different list to
+limit scopes, or `[]` to attach no OAuth scopes. Scopes do not grant IAM
+permissions. The placement output must be synced to a Murmur version supporting
+`gcp.oauth_scopes`. Scope changes affect newly created VMs, not existing VMs.
 
 ### Service profiles
 

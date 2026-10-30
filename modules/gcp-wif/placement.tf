@@ -34,6 +34,13 @@ variable "placement_assign_public_ip" {
   default     = false
 }
 
+variable "placement_oauth_scopes" {
+  description = "OAuth access scopes attached to agent VM runtime service accounts. Set [] for no scopes. Scopes do not grant IAM permissions."
+  type        = list(string)
+  default     = ["https://www.googleapis.com/auth/cloud-platform"]
+  nullable    = false
+}
+
 variable "placement_description" {
   description = "Human-readable description shown in the Murmur dashboard."
   type        = string
@@ -126,6 +133,7 @@ output "placement" {
       wif_service_account          = google_service_account.murmur_vm_creator.email
       wif_readonly_service_account = google_service_account.murmur_readonly.email
       assign_public_ip             = var.placement_assign_public_ip
+      oauth_scopes                 = var.placement_oauth_scopes
     }
     service_account_bindings = [
       for sa in var.vm_service_accounts : {

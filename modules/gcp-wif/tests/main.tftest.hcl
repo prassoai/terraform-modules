@@ -1,5 +1,40 @@
 mock_provider "google" {}
 
+run "placement_default_oauth_scopes" {
+  command = plan
+  variables {
+    placement_name = "customer-gcp"
+  }
+  assert {
+    condition     = output.placement.gcp.oauth_scopes == tolist(["https://www.googleapis.com/auth/cloud-platform"])
+    error_message = "Customer placements must explicitly include the default cloud-platform scope."
+  }
+}
+
+run "placement_custom_oauth_scopes" {
+  command = plan
+  variables {
+    placement_name         = "customer-gcp"
+    placement_oauth_scopes = ["https://www.googleapis.com/auth/devstorage.read_only"]
+  }
+  assert {
+    condition     = output.placement.gcp.oauth_scopes == tolist(["https://www.googleapis.com/auth/devstorage.read_only"])
+    error_message = "Placement scopes must preserve the caller's explicit list."
+  }
+}
+
+run "placement_no_oauth_scopes" {
+  command = plan
+  variables {
+    placement_name         = "customer-gcp"
+    placement_oauth_scopes = []
+  }
+  assert {
+    condition     = length(output.placement.gcp.oauth_scopes) == 0
+    error_message = "An empty scope list must stay empty."
+  }
+}
+
 variables {
   project_id          = "customer-vms"
   tenant_id           = "github_app/acme"

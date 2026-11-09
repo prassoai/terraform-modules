@@ -15,7 +15,7 @@ override_resource {
 }
 
 variables {
-  tenant_id                   = "github_app/acme"
+  tenant_id                   = "github_app/123"
   placement_region            = "us-east-1"
   placement_subnet_ids        = ["subnet-123"]
   placement_security_group_id = "sg-123"
@@ -49,4 +49,11 @@ run "vm_creator_cannot_change_instance_security_groups" {
     ])
     error_message = "Boot-disk resize needs ec2:ModifyVolume."
   }
+}
+
+# A mutable locator must be resolved before it reaches the cloud trust boundary.
+run "reject_login_trust" {
+  command = plan
+  variables { tenant_id = "github_app/acme" }
+  expect_failures = [var.tenant_id]
 }

@@ -37,7 +37,7 @@ resource "google_iam_workload_identity_pool_provider" "murmur" {
 
   # This pool belongs to one tenant. Reject other tenants before they can
   # exchange a subject token, and accept only the two roles this module binds.
-  attribute_condition = "assertion.iss == ${jsonencode(var.murmur_issuer_url)} && assertion.tenant == ${jsonencode(var.tenant_id)} && assertion.role in ['read', 'write']"
+  attribute_condition = "assertion.iss == ${jsonencode(var.murmur_issuer_url)} && assertion.tenant == ${jsonencode(var.tenant_id)} && assertion.infrastructure_owner == 'customer' && assertion.role in ['read', 'write']"
 
   oidc {
     issuer_uri = var.murmur_issuer_url

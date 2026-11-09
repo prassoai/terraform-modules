@@ -4,8 +4,13 @@ variable "project_id" {
 }
 
 variable "tenant_id" {
-  description = "Murmur tenant identity namespace (e.g. \"github_app/acme\"). Obtained from `murmur tenant whoami` or the dashboard."
+  description = "Immutable Murmur tenant address (provider/subject_id). Pass module.tenant_identity.tenant_id; resolve a readable GitHub locator with the tenant-identity module."
   type        = string
+
+  validation {
+    condition     = can(regex("^(github_app|github_oauth|google_oidc)/[1-9][0-9]*$", var.tenant_id))
+    error_message = "tenant_id must contain a provider and immutable numeric subject ID, not a login. Use the tenant-identity module to resolve GitHub locators."
+  }
 }
 
 variable "murmur_issuer_url" {

@@ -65,7 +65,7 @@ resource "aws_iam_openid_connect_provider" "murmur" {
 #
 # AWS IAM trust policies can only condition on "sub" and "aud" — not custom
 # claims like "role". Murmur encodes the role in the sub claim as
-# "{role}:{tenant}" (e.g. "write:github_app/acme"). The trust uses
+# "{role}:{tenant}" (e.g. "write:github_app/123"). The trust uses
 # StringEquals with the exact sub value for single-tenant + role scoping.
 resource "aws_iam_role" "vm_creator" {
   name                 = var.role_name

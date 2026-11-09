@@ -16,6 +16,7 @@ Modules live under `modules/<name>`, one directory per module:
 ```
 terraform-modules/
 └── modules/
+    ├── tenant-identity/  Resolve a readable GitHub locator to an immutable address
     ├── gcp-wif/   Single-tenant WIF for a customer's GCP project
     └── aws-wif/   Single-tenant OIDC federation for a customer's AWS account
 ```
@@ -27,10 +28,10 @@ Modules are consumed via a **git source**, pinned to a release tag with
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=v0.1.0"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=<release-with-immutable-wif>"
 
   project_id = "acme-murmur-vms"
-  tenant_id  = "github_app/acme"
+  tenant_id  = module.tenant_identity.tenant_id
   vm_service_accounts = [
     "murmur-vm@acme-murmur-vms.iam.gserviceaccount.com",
   ]
@@ -39,13 +40,13 @@ module "murmur_wif" {
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=v0.1.0"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=<release-with-immutable-wif>"
 
-  tenant_id = "github_app/acme"
+  tenant_id = module.tenant_identity.tenant_id
 }
 ```
 
-Always pin to a tag (`?ref=v0.1.0`), never to a branch. The double slash
+Always pin to a tag (`?ref=<release-with-immutable-wif>`), never to a branch. The double slash
 (`//`) separates the repository from the module subdirectory.
 
 > **Private-repo access.** While this repository is private, `terraform init`
@@ -67,3 +68,32 @@ moving the `?ref=`.
 |--------|-------|---------|
 | [`gcp-wif`](modules/gcp-wif/) | GCP | Single-tenant WIF pool, provider, service accounts, and IAM that let exactly one Murmur tenant create VMs in the customer's project. |
 | [`aws-wif`](modules/aws-wif/) | AWS | Single-tenant OIDC provider and IAM roles that let exactly one Murmur tenant manage EC2 instances in the customer's account. |
+
+## Immutable tenant identity and rollout
+
+```hcl
+module "tenant_identity" {
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/tenant-identity?ref=<release-with-immutable-wif>"
+  tenant = "github_app/acme"
+}
+```
+
+Use `module.tenant_identity.tenant_id` for every customer WIF module. The
+resolver reads GitHub's public account API at plan time. Review its immutable
+`provider/subject_id` output and any resulting trust changes. A renamed account
+keeps its ID: update the input login to the new handle. A login reassigned to
+another account produces a different ID and a trust-policy change; do not apply
+that change unless you intend to authorize that other account. Lookup errors
+fail the plan. Non-GitHub tenants must obtain their immutable tenant address
+from Murmur's registered tenant address, rather than using a login as trust.
+
+This is an intentional breaking change to customer placement trust. Existing
+namespace-based customer trust is unsupported; no legacy/canonical dual trust
+is installed. Operators must coordinate a maintenance window, pause customer
+placement operations (including image accounting), upgrade both the Murmur
+issuer and these modules, plan and apply the customer IAM changes, and resume
+only after read and write federation succeed for the intended tenant. Tokens
+issued before the issuer upgrade expire after one hour. Upgrade the module
+source pin to a release containing this change; old release tags still use
+namespace trust. Customers must explicitly authorize and run their own apply.
+Platform WIF policies and authority are unchanged.

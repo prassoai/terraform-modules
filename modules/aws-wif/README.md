@@ -94,7 +94,7 @@ module "murmur_wif" {
     aws = aws.murmur_placement
   }
 
-  tenant_id                   = "github_app/acme"
+  tenant_id                   = module.tenant_identity.tenant_id
   placement_region            = "us-east-1"
   placement_subnet_ids        = ["subnet-0aaa", "subnet-0bbb"]
   placement_security_group_id = "sg-0def456"
@@ -109,7 +109,7 @@ calling module and cannot be derived dynamically from an input variable.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `tenant_id` | Murmur tenant identity namespace (required) | — |
+| `tenant_id` | Immutable tenant address from `tenant-identity` (required) | — |
 | `role_name` | IAM role name for VM creation | `"murmur-vm-creator"` |
 | `readonly_role_name` | IAM role name for read-only operations | `"murmur-readonly"` |
 | `instance_profile_name` | Instance profile name for VM runtime | `"murmur-vm"` |
@@ -142,7 +142,7 @@ CLI:
 module "murmur_wif" {
   source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=v0.2.0"
 
-  tenant_id = "github_app/acme"
+  tenant_id = module.tenant_identity.tenant_id
   # ... existing role/profile/oidc inputs ...
 
   placement_name              = "customer-aws-east"   # must not start with "murmur-"
@@ -194,3 +194,10 @@ resources change. Re-sync to apply:
 
 - **SSM policy** — For debugging access; attached per-environment by the
   customer, not in this module.
+
+## Immutable tenant identity and rollout
+
+Resolve your readable GitHub tenant locator once with
+[`tenant-identity`](../tenant-identity/) and pass `module.tenant_identity.tenant_id`
+to this module. See the repository [rollout instructions](../../README.md#immutable-tenant-identity-and-rollout)
+for the intentional customer trust break and coordinated issuer/IAM upgrade.

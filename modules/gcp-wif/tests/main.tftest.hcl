@@ -37,7 +37,7 @@ run "placement_no_oauth_scopes" {
 
 variables {
   project_id          = "customer-vms"
-  tenant_id           = "github_app/acme"
+  tenant_id           = "github_app/123"
   vm_service_accounts = ["murmur-vm@customer-vms.iam.gserviceaccount.com"]
 }
 
@@ -88,4 +88,11 @@ run "hydration_can_find_abandoned_scratch_disks" {
     condition     = contains(google_project_iam_custom_role.vm_lifecycle.permissions, "compute.disks.create")
     error_message = "Hydration creates the scratch disk it later deletes."
   }
+}
+
+# A mutable locator must be resolved before it reaches the cloud trust boundary.
+run "reject_login_trust" {
+  command = plan
+  variables { tenant_id = "github_app/acme" }
+  expect_failures = [var.tenant_id]
 }

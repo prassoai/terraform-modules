@@ -4,14 +4,24 @@ variable "project_id" {
 }
 
 variable "tenant_id" {
-  description = "Murmur tenant identity namespace (e.g. \"github_app/acme\"). Obtained from `murmur tenant whoami` or the dashboard."
+  description = "Immutable Murmur tenant address (e.g. github_app/12345678), using the numeric GitHub account ID, never its login."
   type        = string
+
+  validation {
+    condition     = can(regex("^github_app/[1-9][0-9]*$", var.tenant_id))
+    error_message = "tenant_id must be github_app/<numeric GitHub account ID>, not an organization login."
+  }
 }
 
-variable "murmur_issuer_url" {
-  description = "OIDC issuer URL. Override for staging/dev."
+variable "issuer_base_url" {
+  description = "OIDC HTTPS origin. The module appends /platform/<tenant_id>; override the origin for non-production."
   type        = string
   default     = "https://oidc.murmur.dev"
+
+  validation {
+    condition     = can(regex("^https://[^/?#@[:space:]]+$", var.issuer_base_url))
+    error_message = "issuer_base_url must be an HTTPS origin without a path, query, fragment, or trailing slash."
+  }
 }
 
 variable "pool_id" {

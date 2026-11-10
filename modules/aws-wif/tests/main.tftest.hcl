@@ -15,7 +15,7 @@ override_resource {
 }
 
 variables {
-  tenant_id                   = "github_app/acme"
+  tenant_id                   = "github_app/12345678"
   placement_region            = "us-east-1"
   placement_subnet_ids        = ["subnet-123"]
   placement_security_group_id = "sg-123"
@@ -49,4 +49,64 @@ run "vm_creator_cannot_change_instance_security_groups" {
     ])
     error_message = "Boot-disk resize needs ec2:ModifyVolume."
   }
+}
+
+# AWS condition keys include the entire issuer path. Both roles must retain
+# their audience and role-specific subject checks under that exact prefix.
+run "tenant_specific_issuer" {
+  command = apply
+
+  assert {
+    condition     = aws_iam_openid_connect_provider.murmur.url == "https://oidc.murmur.dev/platform/github_app/12345678"
+    error_message = "The OIDC provider must trust the full tenant issuer."
+  }
+  assert {
+    condition = jsondecode(aws_iam_role.vm_creator.assume_role_policy).Statement[0].Condition.StringEquals == {
+      "oidc.murmur.dev/platform/github_app/12345678:aud" = "sts.amazonaws.com"
+      "oidc.murmur.dev/platform/github_app/12345678:sub" = "write:github_app/12345678"
+    }
+    error_message = "The write trust policy must use the tenant path and immutable subject."
+  }
+  assert {
+    condition = jsondecode(aws_iam_role.readonly.assume_role_policy).Statement[0].Condition.StringEquals == {
+      "oidc.murmur.dev/platform/github_app/12345678:aud" = "sts.amazonaws.com"
+      "oidc.murmur.dev/platform/github_app/12345678:sub" = "read:github_app/12345678"
+    }
+    error_message = "The read trust policy must use the tenant path and immutable subject."
+  }
+  assert {
+    condition     = output.issuer_url == aws_iam_openid_connect_provider.murmur.url
+    error_message = "The issuer output must match the provider."
+  }
+}
+
+# Non-production changes only the origin, including in the IAM condition keys.
+run "nonproduction_tenant_issuer" {
+  command = apply
+  variables {
+    issuer_base_url = "https://oidc.nonprod.murmur.dev"
+    tenant_id       = "github_app/87654321"
+  }
+  assert {
+    condition     = aws_iam_openid_connect_provider.murmur.url == "https://oidc.nonprod.murmur.dev/platform/github_app/87654321"
+    error_message = "An origin override must retain the tenant suffix."
+  }
+  assert {
+    condition     = jsondecode(aws_iam_role.vm_creator.assume_role_policy).Statement[0].Condition.StringEquals["oidc.nonprod.murmur.dev/platform/github_app/87654321:sub"] == "write:github_app/87654321"
+    error_message = "IAM condition keys must follow the overridden origin and tenant."
+  }
+}
+
+# A mutable login must fail at plan time, not silently trust the wrong issuer.
+run "reject_mutable_tenant_login" {
+  command = plan
+  variables { tenant_id = "github_app/acme" }
+  expect_failures = [var.tenant_id]
+}
+
+# An origin containing a path would append a second tenant suffix.
+run "reject_issuer_path" {
+  command = plan
+  variables { issuer_base_url = "https://oidc.murmur.dev/platform/github_app/12345678" }
+  expect_failures = [var.issuer_base_url]
 }

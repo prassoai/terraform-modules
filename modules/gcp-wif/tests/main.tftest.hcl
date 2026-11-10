@@ -108,9 +108,10 @@ run "namespace_input_records_canonical_identity" {
   }
 }
 
-# Namespace syntax remains unambiguous even when its login contains only digits.
+# Explicitly binding a numeric login must resolve it rather than use it as an ID.
 run "numeric_namespace_records_resolved_account" {
   command = plan
+  plan_options { replace = [module.tenant_identity.terraform_data.identity] }
   variables { tenant_id = "github_app/123" }
   override_data {
     target = module.tenant_identity.data.http.account

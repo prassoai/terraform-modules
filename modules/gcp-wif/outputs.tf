@@ -19,6 +19,6 @@ output "vm_service_accounts" {
 }
 
 output "tenant_identity" {
-  description = "Canonical provider and subject_id resolved from tenant_id and recorded for this placement's cloud trust."
+  description = "Pinned canonical provider and subject_id for this placement's cloud trust."
   value       = module.tenant_identity.identity
 }

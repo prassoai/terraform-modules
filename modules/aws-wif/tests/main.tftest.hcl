@@ -68,15 +68,16 @@ run "namespace_input_records_canonical_identity" {
     error_message = "The namespace must resolve to the recorded immutable provider/subject pair."
   }
   assert {
-    condition     = jsondecode(aws_iam_role.vm_creator.assume_role_policy).Statement[0].Condition.StringEquals["${replace(var.oidc_issuer_url, "https://", "")}:sub"] == "write:github_app/123" && jsondecode(aws_iam_role.readonly.assume_role_policy).Statement[0].Condition.StringEquals["${replace(var.oidc_issuer_url, "https://", "")}:sub"] == "read:github_app/123"
+    condition     = jsondecode(aws_iam_role.vm_creator.assume_role_policy).Statement[0].Condition.StringEquals["${replace(var.oidc_issuer_url, "https://", "")}:sub"] == "write:tenant:github_app/123" && jsondecode(aws_iam_role.readonly.assume_role_policy).Statement[0].Condition.StringEquals["${replace(var.oidc_issuer_url, "https://", "")}:sub"] == "read:tenant:github_app/123"
     error_message = "Both role trust policies must use the recorded immutable identity."
   }
 
 }
 
-# Namespace syntax remains unambiguous even when its login contains only digits.
+# Explicitly binding a numeric login must resolve it rather than use it as an ID.
 run "numeric_namespace_records_resolved_account" {
   command = plan
+  plan_options { replace = [module.tenant_identity.terraform_data.identity] }
   variables { tenant_id = "github_app/123" }
   override_data {
     target = module.tenant_identity.data.http.account

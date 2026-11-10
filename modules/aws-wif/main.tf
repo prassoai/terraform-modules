@@ -63,7 +63,7 @@ resource "aws_iam_openid_connect_provider" "murmur" {
 #
 # AWS IAM trust policies can only condition on "sub" and "aud" — not custom
 # claims like "role". Murmur encodes the role in the sub claim as
-# "{role}:{tenant}" (e.g. "write:github_app/123"). The trust uses
+# "{role}:tenant:{provider}/{subject_id}" (e.g. "write:tenant:github_app/123"). The trust uses
 # StringEquals with the exact sub value for single-tenant + role scoping.
 resource "aws_iam_role" "vm_creator" {
   name                 = var.role_name
@@ -80,7 +80,7 @@ resource "aws_iam_role" "vm_creator" {
       Condition = {
         StringEquals = {
           "${local.oidc_host}:aud" = var.oidc_audience
-          "${local.oidc_host}:sub" = "write:${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}"
+          "${local.oidc_host}:sub" = "write:tenant:${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}"
         }
       }
     }]
@@ -95,7 +95,7 @@ resource "aws_iam_role" "vm_creator" {
 # ─── Read-Only Role ──────────────────────────────────────────────────────────
 
 # Allow read-role tokens for this specific tenant to assume the read-only role.
-# Same sub-encoding pattern: "read:{tenant}".
+# Same sub-encoding pattern: "read:tenant:{provider}/{subject_id}".
 resource "aws_iam_role" "readonly" {
   name                 = var.readonly_role_name
   permissions_boundary = var.ec2_permissions_boundary_arn
@@ -111,7 +111,7 @@ resource "aws_iam_role" "readonly" {
       Condition = {
         StringEquals = {
           "${local.oidc_host}:aud" = var.oidc_audience
-          "${local.oidc_host}:sub" = "read:${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}"
+          "${local.oidc_host}:sub" = "read:tenant:${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}"
         }
       }
     }]

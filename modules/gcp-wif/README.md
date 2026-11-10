@@ -81,7 +81,7 @@ module "murmur_wif" {
 | `service_account_email` | VM-creator SA email — use as `wif_service_account` in the Placement |
 | `readonly_service_account_email` | Read-only SA email — use as `wif_readonly_service_account` in the Placement |
 | `vm_service_accounts` | Echo of the runtime SA emails, each mapped to a ServiceAccountBinding |
-| `tenant_identity` | Canonical `{provider, subject_id}` pair recorded in Terraform state for cloud trust |
+| `tenant_identity` | Pinned canonical `{provider, subject_id}` pair for cloud trust |
 | `placement` | **Sync-ready** Murmur Placement (protojson). `null` until `placement_name` is set |
 
 ## Sync-ready placement
@@ -173,8 +173,11 @@ Requires Terraform 1.4 or later to record the resolved identity with `terraform_
 
 `tenant_id` retains its provider/login namespace meaning. Supply a namespace
 such as `github_app/acme`; the module resolves it and records the canonical
-`{provider, subject_id}` pair in its `tenant_identity` output. That pair alone
-determines the tenant claim used by cloud trust. A numeric namespace segment
+`{provider, subject_id}` pair in its `tenant_identity` output. The record pins
+the first resolved owner; ordinary refreshes fail if the namespace resolves to
+a different provider/subject pair. A different owner requires explicit record
+replacement as described in the rollout instructions. Trust uses the WIF-only
+`tenant:` prefix; the recorded identity itself has no prefix. A numeric namespace segment
 is always looked up as a login, never interpreted as a subject ID.
 
 See the repository [rollout instructions](../../README.md#immutable-tenant-identity-and-rollout)

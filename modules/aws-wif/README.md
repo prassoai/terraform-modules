@@ -5,7 +5,7 @@ AWS account. It is the AWS counterpart to [`gcp-wif`](../gcp-wif/).
 
 **The trust policy scopes access to exactly one murmur tenant.** The IAM
 role's `Condition` block uses `StringEquals` on the OIDC `sub` claim
-(`"write:{provider}/{subject_id}"` or `"read:{provider}/{subject_id}"`), so only tokens minted
+(`"write:tenant:{provider}/{subject_id}"` or `"read:tenant:{provider}/{subject_id}"`), so only tokens minted
 for that tenant can assume the role. This is the cryptographic isolation
 boundary for customer-hosted VMs — no other tenant can create, terminate,
 or inspect instances in this account.
@@ -130,7 +130,7 @@ calling module and cannot be derived dynamically from an input variable.
 | `instance_profile_arn` | VM runtime instance profile ARN for EC2 RunInstances |
 | `vm_runtime_role_name` | VM runtime role name for per-environment policy attachments |
 | `oidc_provider_arn` | OIDC provider ARN for audit/trust reference |
-| `tenant_identity` | Canonical `{provider, subject_id}` pair recorded in Terraform state for cloud trust |
+| `tenant_identity` | Pinned canonical `{provider, subject_id}` pair for cloud trust |
 | `placement` | **Sync-ready** Murmur Placement (protojson). `null` until `placement_name` is set |
 
 ## Sync-ready placement
@@ -202,8 +202,11 @@ Requires Terraform 1.4 or later to record the resolved identity with `terraform_
 
 `tenant_id` retains its provider/login namespace meaning. Supply a namespace
 such as `github_app/acme`; the module resolves it and records the canonical
-`{provider, subject_id}` pair in its `tenant_identity` output. That pair alone
-determines the tenant claim used by cloud trust. A numeric namespace segment
+`{provider, subject_id}` pair in its `tenant_identity` output. The record pins
+the first resolved owner; ordinary refreshes fail if the namespace resolves to
+a different provider/subject pair. A different owner requires explicit record
+replacement as described in the rollout instructions. Trust uses the WIF-only
+`tenant:` prefix; the recorded identity itself has no prefix. A numeric namespace segment
 is always looked up as a login, never interpreted as a subject ID.
 
 See the repository [rollout instructions](../../README.md#immutable-tenant-identity-and-rollout)

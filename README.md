@@ -83,12 +83,36 @@ Even a numeric namespace segment is a login and must be resolved.
 
 Supported namespace providers are `github_app` and `github_oauth`. Unsupported
 providers, failed account lookups, and invalid provider metadata fail the plan.
-A rename keeps its ID: update `tenant_id` to the new login. A login reassigned
-to another account resolves to a different ID and produces a visible recorded
-identity/trust change. Review the `tenant_identity` output and IAM plan; apply
-that change only when deliberately authorizing the other account. A
-`terraform_data` record stores the canonical pair in Terraform state at apply;
-a data lookup does not itself grant Murmur membership or cloud authority.
+The first binding records and pins the resolved provider/subject pair. Review
+that identity against the intended Murmur tenant before its initial apply.
+Ordinary refreshes compare the locator's current owner to the pin and fail
+closed on a difference; they do not update trust. A rename is safe when the
+updated `tenant_id` resolves to the same pinned account. A reassigned login,
+changed locator, or provider change cannot redirect established trust.
+
+A different owner requires an explicit rebind. Pause operations, verify the
+new intended owner independently, update `tenant_id`, and generate a reviewed
+plan that explicitly replaces only the module's canonical identity record:
+
+```sh
+terraform plan -replace='module.murmur_wif.module.tenant_identity.terraform_data.identity' -out=customer-wif-rebind.tfplan
+```
+
+Substitute the actual cloud module address (`module.murmur_wif` here). For
+both clouds, explicitly name both identity records with separate `-replace`
+options. Authorized operators may apply that reviewed plan after approval.
+Do not delete state or destroy IAM resources to bypass the pin. A normal
+plan/apply with only a different `tenant_id` must fail. This is an operational
+replacement of the binding record, not a second identity input contract.
+
+Customer WIF encodes the pinned address as `tenant:provider/subject_id` in the
+`tenant` claim and GCP subject, and `read:tenant:provider/subject_id` or
+`write:tenant:provider/subject_id` in AWS subjects. The `tenant:` marker belongs
+only to this WIF encoding; the recorded pair and canonical tenant addresses
+remain unchanged. It separates new customer trust from legacy customer tokens
+for numeric logins, which can otherwise spell a namespace identically to an
+immutable address. This format overlap is verified; no affected customer
+inventory has been established.
 
 This is an intentional breaking change to customer placement trust. Existing
 namespace-based customer trust is unsupported; no legacy/canonical dual trust

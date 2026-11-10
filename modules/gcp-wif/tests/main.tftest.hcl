@@ -104,7 +104,7 @@ run "hydration_can_find_abandoned_scratch_disks" {
 run "tenant_specific_issuer" {
   # An unreachable issuer must fail promptly during planning.
   assert {
-    condition     = data.http.discovery.request_timeout_ms == 10000
+    condition     = data.http.discovery[0].request_timeout_ms == 10000 && data.http.jwks[0].request_timeout_ms == 10000
     error_message = "Discovery readiness must have a finite request timeout."
   }
 
@@ -185,6 +185,80 @@ run "malformed_discovery" {
   override_data {
     target = data.http.discovery
     values = { status_code = 200, response_body = "not-json" }
+  }
+  expect_failures = [google_iam_workload_identity_pool_provider.murmur]
+}
+
+override_data {
+  target = data.http.jwks
+  values = {
+    status_code   = 200
+    response_body = "{\"keys\":[{\"kty\":\"RSA\",\"alg\":\"RS256\",\"use\":\"sig\",\"kid\":\"1\",\"n\":\"test-modulus\",\"e\":\"AQAB\"}]}"
+  }
+}
+
+# A published discovery document cannot establish readiness before its signing
+# keys exist. Fail before replacing customer trust with an unusable provider.
+run "empty_signing_keyset" {
+  command = plan
+  override_data {
+    target = data.http.jwks
+    values = { status_code = 200, response_body = "{\"keys\":[]}" }
+  }
+  expect_failures = [google_iam_workload_identity_pool_provider.murmur]
+}
+
+# Disabling readiness must remove both HTTP lookups so maintenance and teardown
+# can proceed even if discovery is gone or its host cannot be reached.
+run "maintenance_without_oidc_readiness" {
+  command = apply
+  variables { validate_oidc_readiness = false }
+  override_data {
+    target = data.http.discovery
+    values = { status_code = 404, response_body = "not-found" }
+  }
+  override_data {
+    target = data.http.jwks
+    values = { status_code = 404, response_body = "not-found" }
+  }
+  assert {
+    condition     = length(data.http.discovery) == 0 && length(data.http.jwks) == 0
+    error_message = "Disabled readiness must not issue HTTP requests."
+  }
+  assert {
+    condition     = output.issuer_url == "https://oidc.murmur.dev/platform/github_app/12345678"
+    error_message = "Disabling readiness must not change the tenant trust boundary."
+  }
+}
+
+override_resource {
+  target = google_service_account.murmur_vm_creator
+  values = { name = "projects/customer-vms/serviceAccounts/murmur-vm-creator@customer-vms.iam.gserviceaccount.com" }
+}
+
+override_resource {
+  target = google_service_account.murmur_readonly
+  values = { name = "projects/customer-vms/serviceAccounts/murmur-readonly@customer-vms.iam.gserviceaccount.com" }
+}
+
+# Readiness must reject unusable or unsupported key documents, not merely a
+# successful HTTP response, before customer cloud trust is changed.
+run "malformed_signing_keyset" {
+  command = plan
+  override_data {
+    target = data.http.jwks
+    values = { status_code = 200, response_body = "not-json" }
+  }
+  expect_failures = [google_iam_workload_identity_pool_provider.murmur]
+}
+
+# Readiness must reject unusable or unsupported key documents, not merely a
+# successful HTTP response, before customer cloud trust is changed.
+run "unsupported_signing_keyset" {
+  command = plan
+  override_data {
+    target = data.http.jwks
+    values = { status_code = 200, response_body = "{\"keys\":[{\"kty\":\"EC\",\"alg\":\"ES256\",\"use\":\"sig\",\"kid\":\"1\",\"n\":\"modulus\",\"e\":\"AQAB\"}]}" }
   }
   expect_failures = [google_iam_workload_identity_pool_provider.murmur]
 }

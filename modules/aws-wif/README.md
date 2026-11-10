@@ -26,9 +26,22 @@ the OIDC provider and updates both role trust policies.
 
 Terraform fetches `<issuer_url>/.well-known/openid-configuration` during
 planning and refuses to create trust unless it names the exact issuer and
-provisioning-only JWKS. This requires Terraform 1.2+ and the `hashicorp/http`
+provisioning-only JWKS. It also fetches that JWKS and requires a nonempty RS256
+signing keyset. This requires Terraform 1.2+ and the `hashicorp/http`
 provider. Murmur reconciles discovery hourly for registered tenants; a newly
 activated tenant may wait until the next publication.
+
+Use the readiness check as the migration gate: after deploying Murmur's new
+issuer support, run `terraform plan -out=murmur-wif.tfplan` with
+`validate_oidc_readiness = true` (the default). A successful plan confirms
+public discovery and key publication; review it, run
+`terraform apply murmur-wif.tfplan`, then resync the placement output to Murmur.
+Cloud token exchange still needs verification after applying.
+
+For routine maintenance or teardown during a publication outage, set
+`validate_oidc_readiness = false` in the module block before planning. This
+removes both readiness HTTP requests without changing the issuer or trust
+policy. Re-enable it before onboarding or changing the tenant/issuer.
 
 ## Security boundaries
 
@@ -134,6 +147,7 @@ calling module and cannot be derived dynamically from an input variable.
 | `readonly_role_name` | IAM role name for read-only operations | `"murmur-readonly"` |
 | `instance_profile_name` | Instance profile name for VM runtime | `"murmur-vm"` |
 | `issuer_base_url` | OIDC HTTPS origin (tenant ID is appended) | `"https://oidc.murmur.dev"` |
+| `validate_oidc_readiness` | Check discovery and JWKS during planning; disable for maintenance/teardown during outages | `true` |
 | `oidc_audience` | Expected aud claim | `"sts.amazonaws.com"` |
 | `ec2_permissions_boundary_arn` | Optional permissions boundary for all roles | `null` |
 | `extra_policies` | Additional policy ARNs for the creator role | `[]` |

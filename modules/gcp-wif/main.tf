@@ -23,8 +23,17 @@ locals {
 # Refuse trust creation until the public tenant discovery contract is ready.
 # This also catches a wrong environment or a document from the agents family.
 data "http" "discovery" {
+  count              = var.validate_oidc_readiness ? 1 : 0
   request_timeout_ms = 10000
   url                = "${local.issuer_url}/.well-known/openid-configuration"
+  request_headers    = { Accept = "application/json" }
+}
+
+# Probe the known family URL, never an unvalidated discovery-supplied URL.
+data "http" "jwks" {
+  count              = var.validate_oidc_readiness ? 1 : 0
+  request_timeout_ms = 10000
+  url                = "${var.issuer_base_url}/platform/.well-known/jwks.json"
   request_headers    = { Accept = "application/json" }
 }
 
@@ -38,13 +47,19 @@ resource "google_iam_workload_identity_pool" "murmur" {
 resource "google_iam_workload_identity_pool_provider" "murmur" {
   lifecycle {
     precondition {
-      condition = try(
-        data.http.discovery.status_code == 200 &&
-        jsondecode(data.http.discovery.response_body).issuer == local.issuer_url &&
-        jsondecode(data.http.discovery.response_body).jwks_uri == "${var.issuer_base_url}/platform/.well-known/jwks.json",
+      condition = !var.validate_oidc_readiness || try(
+        data.http.discovery[0].status_code == 200 &&
+        jsondecode(data.http.discovery[0].response_body).issuer == local.issuer_url &&
+        jsondecode(data.http.discovery[0].response_body).jwks_uri == "${var.issuer_base_url}/platform/.well-known/jwks.json" &&
+        data.http.jwks[0].status_code == 200 &&
+        length(jsondecode(data.http.jwks[0].response_body).keys) > 0 &&
+        alltrue([for key in jsondecode(data.http.jwks[0].response_body).keys :
+          key.kty == "RSA" && key.alg == "RS256" && key.use == "sig" &&
+          length(key.kid) > 0 && length(key.n) > 0 && length(key.e) > 0
+        ]),
         false,
       )
-      error_message = "Tenant provisioning discovery is not ready or names the wrong issuer/keyset. Wait for Murmur publication before applying."
+      error_message = "Tenant provisioning OIDC is not ready. Discovery must name the exact issuer and provisioning keyset, and JWKS must contain RS256 signing keys. Wait for Murmur publication before applying."
     }
   }
 

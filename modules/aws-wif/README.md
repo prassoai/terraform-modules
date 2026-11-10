@@ -10,6 +10,24 @@ for that tenant can assume the role. This is the cryptographic isolation
 boundary for customer-hosted VMs — no other tenant can create, terminate,
 or inspect instances in this account.
 
+## Tenant-specific issuer
+
+Set `tenant_id = "github_app/<numeric-account-id>"` using the immutable GitHub
+account ID from `gh api orgs/<organization> --jq .id` (or `gh api users/<login> --jq .id` for a personal-account tenant). Do not use the organization login.
+The module trusts `${issuer_base_url}/platform/${tenant_id}`, for example
+`https://oidc.murmur.dev/platform/github_app/12345678`, and exports it as `issuer_url`.
+All tenant discovery documents reference the provisioning-only `/platform/.well-known/jwks.json` keyset.
+
+This is a breaking change: reapply the module with the numeric `tenant_id`.
+The old issuer override input is replaced by `issuer_base_url`, an HTTPS origin
+without a trailing slash. Existing root-issuer customer configurations stop
+accepting newly minted tokens; no legacy fallback is provided. AWS replaces
+the OIDC provider and updates both role trust policies.
+
+Before applying, verify that `<issuer_url>/.well-known/openid-configuration`
+returns the exact issuer. Murmur publishes discovery hourly for registered
+tenants; a newly activated tenant may wait until the next publication.
+
 ## Security boundaries
 
 The VM-creator role applies two independent EC2 boundaries:
@@ -94,7 +112,7 @@ module "murmur_wif" {
     aws = aws.murmur_placement
   }
 
-  tenant_id                   = "github_app/acme"
+  tenant_id                   = "github_app/12345678"
   placement_region            = "us-east-1"
   placement_subnet_ids        = ["subnet-0aaa", "subnet-0bbb"]
   placement_security_group_id = "sg-0def456"
@@ -109,11 +127,11 @@ calling module and cannot be derived dynamically from an input variable.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `tenant_id` | Murmur tenant identity namespace (required) | — |
+| `tenant_id` | Immutable tenant address, e.g. `github_app/12345678` (required) | — |
 | `role_name` | IAM role name for VM creation | `"murmur-vm-creator"` |
 | `readonly_role_name` | IAM role name for read-only operations | `"murmur-readonly"` |
 | `instance_profile_name` | Instance profile name for VM runtime | `"murmur-vm"` |
-| `oidc_issuer_url` | OIDC issuer URL | `"https://oidc.murmur.dev"` |
+| `issuer_base_url` | OIDC HTTPS origin (tenant ID is appended) | `"https://oidc.murmur.dev"` |
 | `oidc_audience` | Expected aud claim | `"sts.amazonaws.com"` |
 | `ec2_permissions_boundary_arn` | Optional permissions boundary for all roles | `null` |
 | `extra_policies` | Additional policy ARNs for the creator role | `[]` |
@@ -130,6 +148,7 @@ calling module and cannot be derived dynamically from an input variable.
 | `instance_profile_arn` | VM runtime instance profile ARN for EC2 RunInstances |
 | `vm_runtime_role_name` | VM runtime role name for per-environment policy attachments |
 | `oidc_provider_arn` | OIDC provider ARN for audit/trust reference |
+| `issuer_url` | Exact tenant-specific provisioning issuer |
 | `placement` | **Sync-ready** Murmur Placement (protojson). `null` until `placement_name` is set |
 
 ## Sync-ready placement
@@ -140,9 +159,9 @@ CLI:
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=v0.2.0"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=ad9876152452fb8d8905a26d768b9fadd1046bde"
 
-  tenant_id = "github_app/acme"
+  tenant_id = "github_app/12345678"
   # ... existing role/profile/oidc inputs ...
 
   placement_name              = "customer-aws-east"   # must not start with "murmur-"

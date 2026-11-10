@@ -4,12 +4,27 @@ This module creates a single-tenant [Workload Identity Federation][wif]
 configuration in a customer's own GCP project. It is the GCP counterpart to
 [`aws-wif`](../aws-wif/).
 
-**The principalSet binds the service account to exactly one Murmur tenant.**
-The `roles/iam.workloadIdentityUser` binding targets
-`principalSet://.../attribute.tenant/${tenant_id}`, so only OIDC tokens
-carrying that tenant's claim can impersonate the VM-creator service account.
-This is the cryptographic isolation boundary for customer-hosted VMs — no
-other tenant can create, delete, or inspect instances in this project.
+**The provider trusts exactly one tenant's provisioning issuer.** It checks
+that issuer and the immutable `tenant` claim before role-scoped service-account
+bindings allow `read` or `write` access.
+
+## Tenant-specific issuer
+
+Set `tenant_id = "github_app/<numeric-account-id>"` using the immutable GitHub
+account ID from `gh api orgs/<organization> --jq .id` (or `gh api users/<login> --jq .id` for a personal-account tenant). Do not use the organization login.
+The module trusts `${issuer_base_url}/platform/${tenant_id}`, for example
+`https://oidc.murmur.dev/platform/github_app/12345678`, and exports it as `issuer_url`.
+All tenant discovery documents reference the provisioning-only `/platform/.well-known/jwks.json` keyset.
+
+This is a breaking change: reapply the module with the numeric `tenant_id`.
+The old issuer override input is replaced by `issuer_base_url`, an HTTPS origin
+without a trailing slash. Existing root-issuer customer configurations stop
+accepting newly minted tokens; no legacy fallback is provided. GCP updates the OIDC provider and its attribute
+condition.
+
+Before applying, verify that `<issuer_url>/.well-known/openid-configuration`
+returns the exact issuer. Murmur publishes discovery hourly for registered
+tenants; a newly activated tenant may wait until the next publication.
 
 ## Recommended: a dedicated project
 
@@ -44,10 +59,10 @@ the dedicated project is the recommended route.
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=v0.1.0"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=ad9876152452fb8d8905a26d768b9fadd1046bde"
 
   project_id = "acme-murmur-vms"
-  tenant_id  = "github_app/acme"
+  tenant_id  = "github_app/12345678"
 
   # VM runtime service accounts the WIF SA must be able to attach at create
   # time. List every SA referenced by the placement's service_account_bindings.
@@ -62,9 +77,9 @@ module "murmur_wif" {
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `project_id` | GCP project ID where VMs are created; use one [dedicated to murmur](#recommended-a-dedicated-project) (required) | — |
-| `tenant_id` | Murmur tenant identity namespace (required) | — |
+| `tenant_id` | Immutable tenant address, e.g. `github_app/12345678` (required) | — |
 | `vm_service_accounts` | VM runtime SA emails the WIF SA may attach (required) | — |
-| `murmur_issuer_url` | OIDC issuer URL | `"https://oidc.murmur.dev"` |
+| `issuer_base_url` | OIDC HTTPS origin (tenant ID is appended) | `"https://oidc.murmur.dev"` |
 | `pool_id` | WIF pool ID | `"murmur-pool"` |
 | `provider_id` | WIF provider ID | `"murmur-provider"` |
 | `service_account_id` | VM-creator service account ID | `"murmur-vm-creator"` |
@@ -80,6 +95,7 @@ module "murmur_wif" {
 | `service_account_email` | VM-creator SA email — use as `wif_service_account` in the Placement |
 | `readonly_service_account_email` | Read-only SA email — use as `wif_readonly_service_account` in the Placement |
 | `vm_service_accounts` | Echo of the runtime SA emails, each mapped to a ServiceAccountBinding |
+| `issuer_url` | Exact tenant-specific provisioning issuer |
 | `placement` | **Sync-ready** Murmur Placement (protojson). `null` until `placement_name` is set |
 
 ## Sync-ready placement
@@ -90,10 +106,10 @@ CLI:
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=v0.2.0"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=ad9876152452fb8d8905a26d768b9fadd1046bde"
 
   project_id          = "acme-murmur-vms"
-  tenant_id           = "github_app/acme"
+  tenant_id           = "github_app/12345678"
   vm_service_accounts = ["murmur-vm@acme-murmur-vms.iam.gserviceaccount.com"]
 
   placement_name   = "customer-gcp-east"   # must not start with "murmur-"
@@ -157,7 +173,7 @@ resources change. Re-sync to apply:
 
 ## Notes
 
-- **`tenant_id`** comes from `murmur tenant whoami` or the dashboard.
+- **`tenant_id`** uses the immutable numeric GitHub account ID, as described above.
 - The `murmurVmCreator` custom role is intentionally tight. If a future Murmur
   release needs an additional compute permission, upgrade to the module version
   (`?ref=`) that includes it.

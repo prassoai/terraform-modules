@@ -175,7 +175,7 @@ CLI:
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=cc0216762d417ab1c38da69721c8effaa322e494"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=d45abf34c60ecac39266fb4c6468edcde7a24fef"
 
   tenant_id = "github_app/12345678"
   # ... existing role/profile/oidc inputs ...

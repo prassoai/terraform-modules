@@ -63,6 +63,12 @@ run "vm_creator_cannot_change_instance_security_groups" {
 # AWS condition keys include the entire issuer path. Both roles must retain
 # their audience and role-specific subject checks under that exact prefix.
 run "tenant_specific_issuer" {
+  # An unreachable issuer must fail promptly during planning.
+  assert {
+    condition     = data.http.discovery.request_timeout_ms == 10000
+    error_message = "Discovery readiness must have a finite request timeout."
+  }
+
   command = apply
 
   assert {

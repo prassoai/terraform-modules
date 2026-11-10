@@ -40,8 +40,9 @@ data "tls_certificate" "oidc" {
 # Refuse trust creation until the public tenant discovery contract is ready.
 # This also catches a wrong environment or a document from the agents family.
 data "http" "discovery" {
-  url             = "${local.issuer_url}/.well-known/openid-configuration"
-  request_headers = { Accept = "application/json" }
+  request_timeout_ms = 10000
+  url                = "${local.issuer_url}/.well-known/openid-configuration"
+  request_headers    = { Accept = "application/json" }
 }
 
 resource "aws_iam_openid_connect_provider" "murmur" {

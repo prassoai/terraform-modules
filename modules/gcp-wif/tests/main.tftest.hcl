@@ -102,6 +102,12 @@ run "hydration_can_find_abandoned_scratch_disks" {
 # The provider must trust only the immutable tenant issuer, and retain tenant
 # and role checks. Sharing public signing keys must not merge tenant trust.
 run "tenant_specific_issuer" {
+  # An unreachable issuer must fail promptly during planning.
+  assert {
+    condition     = data.http.discovery.request_timeout_ms == 10000
+    error_message = "Discovery readiness must have a finite request timeout."
+  }
+
   command = plan
 
   assert {

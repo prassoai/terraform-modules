@@ -20,6 +20,13 @@ locals {
   issuer_url = "${var.issuer_base_url}/platform/${var.tenant_id}"
 }
 
+# Refuse trust creation until the public tenant discovery contract is ready.
+# This also catches a wrong environment or a document from the agents family.
+data "http" "discovery" {
+  url             = "${local.issuer_url}/.well-known/openid-configuration"
+  request_headers = { Accept = "application/json" }
+}
+
 resource "google_iam_workload_identity_pool" "murmur" {
   project                   = var.project_id
   workload_identity_pool_id = var.pool_id
@@ -28,6 +35,18 @@ resource "google_iam_workload_identity_pool" "murmur" {
 }
 
 resource "google_iam_workload_identity_pool_provider" "murmur" {
+  lifecycle {
+    precondition {
+      condition = try(
+        data.http.discovery.status_code == 200 &&
+        jsondecode(data.http.discovery.response_body).issuer == local.issuer_url &&
+        jsondecode(data.http.discovery.response_body).jwks_uri == "${var.issuer_base_url}/platform/.well-known/jwks.json",
+        false,
+      )
+      error_message = "Tenant provisioning discovery is not ready or names the wrong issuer/keyset. Wait for Murmur publication before applying."
+    }
+  }
+
   project                            = var.project_id
   workload_identity_pool_id          = google_iam_workload_identity_pool.murmur.workload_identity_pool_id
   workload_identity_pool_provider_id = var.provider_id

@@ -1,3 +1,12 @@
+mock_provider "http" {
+  mock_data "http" {
+    defaults = {
+      status_code   = 200
+      response_body = "{\"issuer\":\"https://oidc.murmur.dev/platform/github_app/12345678\",\"jwks_uri\":\"https://oidc.murmur.dev/platform/.well-known/jwks.json\"}"
+    }
+  }
+}
+
 mock_provider "aws" {
   mock_data "aws_subnet" {
     defaults = { arn = "arn:aws:ec2:us-east-1:111111111111:subnet/subnet-123" }
@@ -82,6 +91,11 @@ run "tenant_specific_issuer" {
 
 # Non-production changes only the origin, including in the IAM condition keys.
 run "nonproduction_tenant_issuer" {
+  override_data {
+    target = data.http.discovery
+    values = { status_code = 200, response_body = "{\"issuer\":\"https://oidc.nonprod.murmur.dev/platform/github_app/87654321\",\"jwks_uri\":\"https://oidc.nonprod.murmur.dev/platform/.well-known/jwks.json\"}" }
+  }
+
   command = apply
   variables {
     issuer_base_url = "https://oidc.nonprod.murmur.dev"
@@ -109,4 +123,37 @@ run "reject_issuer_path" {
   command = plan
   variables { issuer_base_url = "https://oidc.murmur.dev/platform/github_app/12345678" }
   expect_failures = [var.issuer_base_url]
+}
+
+# Onboarding must stop before cloud trust is created if public discovery does
+# not advertise this exact tenant and its provisioning-only keyset.
+run "wrong_tenant_discovery" {
+  command = plan
+  override_data {
+    target = data.http.discovery
+    values = { status_code = 200, response_body = "{\"issuer\":\"https://oidc.murmur.dev/platform/github_app/99999999\",\"jwks_uri\":\"https://oidc.murmur.dev/platform/.well-known/jwks.json\"}" }
+  }
+  expect_failures = [aws_iam_openid_connect_provider.murmur]
+}
+
+# Onboarding must stop before cloud trust is created if public discovery does
+# not advertise this exact tenant and its provisioning-only keyset.
+run "wrong_family_keyset" {
+  command = plan
+  override_data {
+    target = data.http.discovery
+    values = { status_code = 200, response_body = "{\"issuer\":\"https://oidc.murmur.dev/platform/github_app/12345678\",\"jwks_uri\":\"https://oidc.murmur.dev/agents/.well-known/jwks.json\"}" }
+  }
+  expect_failures = [aws_iam_openid_connect_provider.murmur]
+}
+
+# Onboarding must stop before cloud trust is created if public discovery does
+# not advertise this exact tenant and its provisioning-only keyset.
+run "malformed_discovery" {
+  command = plan
+  override_data {
+    target = data.http.discovery
+    values = { status_code = 200, response_body = "not-json" }
+  }
+  expect_failures = [aws_iam_openid_connect_provider.murmur]
 }

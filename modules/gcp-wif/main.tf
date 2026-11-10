@@ -1,7 +1,6 @@
 module "tenant_identity" {
   source    = "../internal/tenant-identity"
   namespace = var.tenant_id
-  providers = { http = http }
 }
 
 # Workload Identity Federation module for single-tenant GCP authorization.

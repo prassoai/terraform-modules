@@ -1,7 +1,6 @@
 module "tenant_identity" {
   source    = "../internal/tenant-identity"
   namespace = var.tenant_id
-  providers = { http = http }
 }
 
 # Customer trust binds exact role and immutable provider/subject pairs.

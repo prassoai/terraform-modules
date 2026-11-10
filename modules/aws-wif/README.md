@@ -24,9 +24,11 @@ without a trailing slash. Existing root-issuer customer configurations stop
 accepting newly minted tokens; no legacy fallback is provided. AWS replaces
 the OIDC provider and updates both role trust policies.
 
-Before applying, verify that `<issuer_url>/.well-known/openid-configuration`
-returns the exact issuer. Murmur publishes discovery hourly for registered
-tenants; a newly activated tenant may wait until the next publication.
+Terraform fetches `<issuer_url>/.well-known/openid-configuration` during
+planning and refuses to create trust unless it names the exact issuer and
+provisioning-only JWKS. This requires Terraform 1.2+ and the `hashicorp/http`
+provider. Murmur reconciles discovery hourly for registered tenants; a newly
+activated tenant may wait until the next publication.
 
 ## Security boundaries
 
@@ -159,7 +161,7 @@ CLI:
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=ad9876152452fb8d8905a26d768b9fadd1046bde"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=cc0216762d417ab1c38da69721c8effaa322e494"
 
   tenant_id = "github_app/12345678"
   # ... existing role/profile/oidc inputs ...

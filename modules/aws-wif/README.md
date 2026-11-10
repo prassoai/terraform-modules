@@ -5,7 +5,7 @@ AWS account. It is the AWS counterpart to [`gcp-wif`](../gcp-wif/).
 
 **The trust policy scopes access to exactly one murmur tenant.** The IAM
 role's `Condition` block uses `StringEquals` on the OIDC `sub` claim
-(`"write:{tenant_id}"` or `"read:{tenant_id}"`), so only tokens minted
+(`"write:{provider}/{subject_id}"` or `"read:{provider}/{subject_id}"`), so only tokens minted
 for that tenant can assume the role. This is the cryptographic isolation
 boundary for customer-hosted VMs — no other tenant can create, terminate,
 or inspect instances in this account.
@@ -94,7 +94,7 @@ module "murmur_wif" {
     aws = aws.murmur_placement
   }
 
-  tenant_id                   = module.tenant_identity.tenant_id
+  tenant_id                   = "github_app/acme"
   placement_region            = "us-east-1"
   placement_subnet_ids        = ["subnet-0aaa", "subnet-0bbb"]
   placement_security_group_id = "sg-0def456"
@@ -109,7 +109,7 @@ calling module and cannot be derived dynamically from an input variable.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `tenant_id` | Immutable tenant address from `tenant-identity` (required) | — |
+| `tenant_id` | Murmur provider/login namespace (required) | — |
 | `role_name` | IAM role name for VM creation | `"murmur-vm-creator"` |
 | `readonly_role_name` | IAM role name for read-only operations | `"murmur-readonly"` |
 | `instance_profile_name` | Instance profile name for VM runtime | `"murmur-vm"` |
@@ -130,6 +130,7 @@ calling module and cannot be derived dynamically from an input variable.
 | `instance_profile_arn` | VM runtime instance profile ARN for EC2 RunInstances |
 | `vm_runtime_role_name` | VM runtime role name for per-environment policy attachments |
 | `oidc_provider_arn` | OIDC provider ARN for audit/trust reference |
+| `tenant_identity` | Canonical `{provider, subject_id}` pair recorded in Terraform state for cloud trust |
 | `placement` | **Sync-ready** Murmur Placement (protojson). `null` until `placement_name` is set |
 
 ## Sync-ready placement
@@ -142,7 +143,7 @@ CLI:
 module "murmur_wif" {
   source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=v0.2.0"
 
-  tenant_id = module.tenant_identity.tenant_id
+  tenant_id = "github_app/acme"
   # ... existing role/profile/oidc inputs ...
 
   placement_name              = "customer-aws-east"   # must not start with "murmur-"
@@ -197,7 +198,13 @@ resources change. Re-sync to apply:
 
 ## Immutable tenant identity and rollout
 
-Resolve your readable GitHub tenant locator once with
-[`tenant-identity`](../tenant-identity/) and pass `module.tenant_identity.tenant_id`
-to this module. See the repository [rollout instructions](../../README.md#immutable-tenant-identity-and-rollout)
+Requires Terraform 1.4 or later to record the resolved identity with `terraform_data`.
+
+`tenant_id` retains its provider/login namespace meaning. Supply a namespace
+such as `github_app/acme`; the module resolves it and records the canonical
+`{provider, subject_id}` pair in its `tenant_identity` output. That pair alone
+determines the tenant claim used by cloud trust. A numeric namespace segment
+is always looked up as a login, never interpreted as a subject ID.
+
+See the repository [rollout instructions](../../README.md#immutable-tenant-identity-and-rollout)
 for the intentional customer trust break and coordinated issuer/IAM upgrade.

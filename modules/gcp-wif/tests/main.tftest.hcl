@@ -1,3 +1,12 @@
+mock_provider "http" {
+  mock_data "http" {
+    defaults = {
+      status_code   = 200
+      response_body = "{\"id\":123,\"type\":\"Organization\"}"
+    }
+  }
+}
+
 mock_provider "google" {}
 
 run "placement_default_oauth_scopes" {
@@ -37,7 +46,7 @@ run "placement_no_oauth_scopes" {
 
 variables {
   project_id          = "customer-vms"
-  tenant_id           = "github_app/123"
+  tenant_id           = "github_app/acme"
   vm_service_accounts = ["murmur-vm@customer-vms.iam.gserviceaccount.com"]
 }
 
@@ -90,9 +99,28 @@ run "hydration_can_find_abandoned_scratch_disks" {
   }
 }
 
-# A mutable locator must be resolved before it reaches the cloud trust boundary.
-run "reject_login_trust" {
+# The public input remains a namespace; canonical identity is recorded separately.
+run "namespace_input_records_canonical_identity" {
   command = plan
-  variables { tenant_id = "github_app/acme" }
-  expect_failures = [var.tenant_id]
+  assert {
+    condition     = output.tenant_identity == { provider = "github_app", subject_id = "123" }
+    error_message = "The namespace must resolve to the recorded immutable provider/subject pair."
+  }
+}
+
+# Namespace syntax remains unambiguous even when its login contains only digits.
+run "numeric_namespace_records_resolved_account" {
+  command = plan
+  variables { tenant_id = "github_app/123" }
+  override_data {
+    target = module.tenant_identity.data.http.account
+    values = {
+      status_code   = 200
+      response_body = "{\"id\":456,\"type\":\"Organization\"}"
+    }
+  }
+  assert {
+    condition     = output.tenant_identity == { provider = "github_app", subject_id = "456" }
+    error_message = "tenant_id is always a provider/login namespace, including numeric logins."
+  }
 }

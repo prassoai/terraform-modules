@@ -17,3 +17,8 @@ output "vm_service_accounts" {
   description = "VM runtime service account emails. Each maps to a ServiceAccountBinding on the Placement with grant-scoped access control."
   value       = var.vm_service_accounts
 }
+
+output "tenant_identity" {
+  description = "Canonical provider and subject_id resolved from tenant_id and recorded for this placement's cloud trust."
+  value       = module.tenant_identity.identity
+}

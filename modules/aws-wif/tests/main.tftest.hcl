@@ -1,3 +1,12 @@
+mock_provider "http" {
+  mock_data "http" {
+    defaults = {
+      status_code   = 200
+      response_body = "{\"id\":123,\"type\":\"Organization\"}"
+    }
+  }
+}
+
 mock_provider "aws" {
   mock_data "aws_subnet" {
     defaults = { arn = "arn:aws:ec2:us-east-1:111111111111:subnet/subnet-123" }
@@ -15,7 +24,7 @@ override_resource {
 }
 
 variables {
-  tenant_id                   = "github_app/123"
+  tenant_id                   = "github_app/acme"
   placement_region            = "us-east-1"
   placement_subnet_ids        = ["subnet-123"]
   placement_security_group_id = "sg-123"
@@ -51,9 +60,33 @@ run "vm_creator_cannot_change_instance_security_groups" {
   }
 }
 
-# A mutable locator must be resolved before it reaches the cloud trust boundary.
-run "reject_login_trust" {
+# The public input remains a namespace; canonical identity is recorded separately.
+run "namespace_input_records_canonical_identity" {
+  command = apply
+  assert {
+    condition     = output.tenant_identity == { provider = "github_app", subject_id = "123" }
+    error_message = "The namespace must resolve to the recorded immutable provider/subject pair."
+  }
+  assert {
+    condition     = jsondecode(aws_iam_role.vm_creator.assume_role_policy).Statement[0].Condition.StringEquals["${replace(var.oidc_issuer_url, "https://", "")}:sub"] == "write:github_app/123" && jsondecode(aws_iam_role.readonly.assume_role_policy).Statement[0].Condition.StringEquals["${replace(var.oidc_issuer_url, "https://", "")}:sub"] == "read:github_app/123"
+    error_message = "Both role trust policies must use the recorded immutable identity."
+  }
+
+}
+
+# Namespace syntax remains unambiguous even when its login contains only digits.
+run "numeric_namespace_records_resolved_account" {
   command = plan
-  variables { tenant_id = "github_app/acme" }
-  expect_failures = [var.tenant_id]
+  variables { tenant_id = "github_app/123" }
+  override_data {
+    target = module.tenant_identity.data.http.account
+    values = {
+      status_code   = 200
+      response_body = "{\"id\":456,\"type\":\"Organization\"}"
+    }
+  }
+  assert {
+    condition     = output.tenant_identity == { provider = "github_app", subject_id = "456" }
+    error_message = "tenant_id is always a provider/login namespace, including numeric logins."
+  }
 }

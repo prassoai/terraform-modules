@@ -1,12 +1,11 @@
-# ┌─────────────────────────────────────────────────────────────────────────────┐
-# │ CUSTOMER MODULE — SINGLE-TENANT OIDC FEDERATION                           │
-# │                                                                           │
-# │ This module creates a single-tenant OIDC federation for a customer's own  │
-# │ AWS account. The IAM trust policy scopes access to exactly one murmur     │
-# │ tenant via StringEquals on the sub claim. This is the cryptographic       │
-# │ isolation boundary: only OIDC tokens with sub="write:{tenant_id}" or     │
-# │ sub="read:{tenant_id}" can assume the respective roles.                  │
-# └─────────────────────────────────────────────────────────────────────────────┘
+module "tenant_identity" {
+  source    = "../internal/tenant-identity"
+  namespace = var.tenant_id
+  providers = { http = http }
+}
+
+# Customer trust binds exact role and immutable provider/subject pairs.
+# tenant_id is a login namespace resolved at the module input boundary.
 
 locals {
   # Strip the scheme for IAM OIDC condition keys. AWS uses the bare host as
@@ -82,7 +81,7 @@ resource "aws_iam_role" "vm_creator" {
       Condition = {
         StringEquals = {
           "${local.oidc_host}:aud" = var.oidc_audience
-          "${local.oidc_host}:sub" = "write:${var.tenant_id}"
+          "${local.oidc_host}:sub" = "write:${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}"
         }
       }
     }]
@@ -113,7 +112,7 @@ resource "aws_iam_role" "readonly" {
       Condition = {
         StringEquals = {
           "${local.oidc_host}:aud" = var.oidc_audience
-          "${local.oidc_host}:sub" = "read:${var.tenant_id}"
+          "${local.oidc_host}:sub" = "read:${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}"
         }
       }
     }]

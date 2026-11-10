@@ -8,8 +8,9 @@ The provider accepts only the configured immutable tenant address and customer
 infrastructure ownership. Separate role bindings grant read tokens access to
 the read-only service account and write tokens access to the VM creator.
 
-Resolve a readable GitHub tenant locator once with
-[`tenant-identity`](../tenant-identity/), then pass its `tenant_id` output here.
+Set `tenant_id` to your provider/login namespace, such as `github_app/acme`.
+The module resolves it at the input boundary and records the canonical
+`{provider, subject_id}` pair as `tenant_identity` for cloud trust.
 
 ## Recommended: a dedicated project
 
@@ -47,7 +48,7 @@ module "murmur_wif" {
   source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=<release-with-immutable-wif>"
 
   project_id = "acme-murmur-vms"
-  tenant_id  = module.tenant_identity.tenant_id
+  tenant_id  = "github_app/acme"
 
   # VM runtime service accounts the WIF SA must be able to attach at create
   # time. List every SA referenced by the placement's service_account_bindings.
@@ -62,7 +63,7 @@ module "murmur_wif" {
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `project_id` | GCP project ID where VMs are created; use one [dedicated to murmur](#recommended-a-dedicated-project) (required) | — |
-| `tenant_id` | Immutable tenant address from `tenant-identity` (required) | — |
+| `tenant_id` | Murmur provider/login namespace (required) | — |
 | `vm_service_accounts` | VM runtime SA emails the WIF SA may attach (required) | — |
 | `murmur_issuer_url` | OIDC issuer URL | `"https://oidc.murmur.dev"` |
 | `pool_id` | WIF pool ID | `"murmur-pool"` |
@@ -80,6 +81,7 @@ module "murmur_wif" {
 | `service_account_email` | VM-creator SA email — use as `wif_service_account` in the Placement |
 | `readonly_service_account_email` | Read-only SA email — use as `wif_readonly_service_account` in the Placement |
 | `vm_service_accounts` | Echo of the runtime SA emails, each mapped to a ServiceAccountBinding |
+| `tenant_identity` | Canonical `{provider, subject_id}` pair recorded in Terraform state for cloud trust |
 | `placement` | **Sync-ready** Murmur Placement (protojson). `null` until `placement_name` is set |
 
 ## Sync-ready placement
@@ -93,7 +95,7 @@ module "murmur_wif" {
   source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=v0.2.0"
 
   project_id          = "acme-murmur-vms"
-  tenant_id           = module.tenant_identity.tenant_id
+  tenant_id           = "github_app/acme"
   vm_service_accounts = ["murmur-vm@acme-murmur-vms.iam.gserviceaccount.com"]
 
   placement_name   = "customer-gcp-east"   # must not start with "murmur-"
@@ -157,8 +159,8 @@ resources change. Re-sync to apply:
 
 ## Notes
 
-- **`tenant_id`** comes from `module.tenant_identity.tenant_id`; see the
-  [resolver](../tenant-identity/) for human-friendly input.
+- **`tenant_id`** is your provider/login namespace, such as `github_app/acme`.
+  `tenant_identity` records the immutable provider/subject pair resolved for trust.
 - The `murmurVmCreator` custom role is intentionally tight. If a future Murmur
   release needs an additional compute permission, upgrade to the module version
   (`?ref=`) that includes it.
@@ -167,7 +169,13 @@ resources change. Re-sync to apply:
 
 ## Immutable tenant identity and rollout
 
-Resolve your readable GitHub tenant locator once with
-[`tenant-identity`](../tenant-identity/) and pass `module.tenant_identity.tenant_id`
-to this module. See the repository [rollout instructions](../../README.md#immutable-tenant-identity-and-rollout)
+Requires Terraform 1.4 or later to record the resolved identity with `terraform_data`.
+
+`tenant_id` retains its provider/login namespace meaning. Supply a namespace
+such as `github_app/acme`; the module resolves it and records the canonical
+`{provider, subject_id}` pair in its `tenant_identity` output. That pair alone
+determines the tenant claim used by cloud trust. A numeric namespace segment
+is always looked up as a login, never interpreted as a subject ID.
+
+See the repository [rollout instructions](../../README.md#immutable-tenant-identity-and-rollout)
 for the intentional customer trust break and coordinated issuer/IAM upgrade.

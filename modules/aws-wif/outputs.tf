@@ -22,3 +22,8 @@ output "oidc_provider_arn" {
   description = "ARN of the IAM OIDC provider. For audit and trust reference."
   value       = aws_iam_openid_connect_provider.murmur.arn
 }
+
+output "tenant_identity" {
+  description = "Canonical provider and subject_id resolved from tenant_id and recorded for this placement's cloud trust."
+  value       = module.tenant_identity.identity
+}

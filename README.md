@@ -16,7 +16,6 @@ Modules live under `modules/<name>`, one directory per module:
 ```
 terraform-modules/
 └── modules/
-    ├── tenant-identity/  Resolve a readable GitHub locator to an immutable address
     ├── gcp-wif/   Single-tenant WIF for a customer's GCP project
     └── aws-wif/   Single-tenant OIDC federation for a customer's AWS account
 ```
@@ -31,7 +30,7 @@ module "murmur_wif" {
   source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=<release-with-immutable-wif>"
 
   project_id = "acme-murmur-vms"
-  tenant_id  = module.tenant_identity.tenant_id
+  tenant_id  = "github_app/acme"
   vm_service_accounts = [
     "murmur-vm@acme-murmur-vms.iam.gserviceaccount.com",
   ]
@@ -42,7 +41,7 @@ module "murmur_wif" {
 module "murmur_wif" {
   source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=<release-with-immutable-wif>"
 
-  tenant_id = module.tenant_identity.tenant_id
+  tenant_id = "github_app/acme"
 }
 ```
 
@@ -71,21 +70,25 @@ moving the `?ref=`.
 
 ## Immutable tenant identity and rollout
 
-```hcl
-module "tenant_identity" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/tenant-identity?ref=<release-with-immutable-wif>"
-  tenant = "github_app/acme"
-}
-```
+Requires Terraform 1.4 or later for the canonical identity record.
 
-Use `module.tenant_identity.tenant_id` for every customer WIF module. The
-resolver reads GitHub's public account API at plan time. Review its immutable
-`provider/subject_id` output and any resulting trust changes. A renamed account
-keeps its ID: update the input login to the new handle. A login reassigned to
-another account produces a different ID and a trust-policy change; do not apply
-that change unless you intend to authorize that other account. Lookup errors
-fail the plan. Non-GitHub tenants must obtain their immutable tenant address
-from Murmur's registered tenant address, rather than using a login as trust.
+`tenant_id` keeps its established provider/login namespace meaning, for example
+`github_app/acme`. Each cloud module resolves that human-entered namespace at
+its input boundary through GitHub's public account API, records the canonical
+`{provider, subject_id}` pair in its `tenant_identity` output, and uses only
+that identity for cloud trust. The shared resolver is an internal implementation
+helper, not an additional customer module or input contract. No subject ID
+transcription or extra resolver call is required in customer configuration.
+Even a numeric namespace segment is a login and must be resolved.
+
+Supported namespace providers are `github_app` and `github_oauth`. Unsupported
+providers, failed account lookups, and invalid provider metadata fail the plan.
+A rename keeps its ID: update `tenant_id` to the new login. A login reassigned
+to another account resolves to a different ID and produces a visible recorded
+identity/trust change. Review the `tenant_identity` output and IAM plan; apply
+that change only when deliberately authorizing the other account. A
+`terraform_data` record stores the canonical pair in Terraform state at apply;
+a data lookup does not itself grant Murmur membership or cloud authority.
 
 This is an intentional breaking change to customer placement trust. Existing
 namespace-based customer trust is unsupported; no legacy/canonical dual trust

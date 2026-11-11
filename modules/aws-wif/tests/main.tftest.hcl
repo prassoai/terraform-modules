@@ -64,11 +64,15 @@ run "vm_creator_cannot_change_instance_security_groups" {
 run "namespace_input_records_canonical_identity" {
   command = apply
   assert {
+    condition = aws_iam_openid_connect_provider.murmur.url == "${var.oidc_issuer_url}/platform/github_app/123"
+    error_message = "The issuer must use the pinned immutable account."
+  }
+  assert {
     condition     = output.tenant_identity == { provider = "github_app", subject_id = "123" }
     error_message = "The namespace must resolve to the recorded immutable provider/subject pair."
   }
   assert {
-    condition     = jsondecode(aws_iam_role.vm_creator.assume_role_policy).Statement[0].Condition.StringEquals["${replace(var.oidc_issuer_url, "https://", "")}:sub"] == "write:tenant:github_app/123" && jsondecode(aws_iam_role.readonly.assume_role_policy).Statement[0].Condition.StringEquals["${replace(var.oidc_issuer_url, "https://", "")}:sub"] == "read:tenant:github_app/123"
+    condition     = jsondecode(aws_iam_role.vm_creator.assume_role_policy).Statement[0].Condition.StringEquals["${replace(var.oidc_issuer_url, "https://", "")}/platform/github_app/123:sub"] == "write:tenant:github_app/123" && jsondecode(aws_iam_role.readonly.assume_role_policy).Statement[0].Condition.StringEquals["${replace(var.oidc_issuer_url, "https://", "")}/platform/github_app/123:sub"] == "read:tenant:github_app/123"
     error_message = "Both role trust policies must use the recorded immutable identity."
   }
 
@@ -90,4 +94,11 @@ run "numeric_namespace_records_resolved_account" {
     condition     = output.tenant_identity == { provider = "github_app", subject_id = "456" }
     error_message = "tenant_id is always a provider/login namespace, including numeric logins."
   }
+}
+
+# A full tenant issuer would select a second, conflicting identity source.
+run "reject_tenant_path_as_origin" {
+  command = plan
+  variables { oidc_issuer_url = "https://oidc.murmur.dev/platform/github_app/999" }
+  expect_failures = [var.oidc_issuer_url]
 }

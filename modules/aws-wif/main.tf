@@ -7,9 +7,10 @@ module "tenant_identity" {
 # tenant_id is a login namespace resolved at the module input boundary.
 
 locals {
+  issuer_url = "${var.oidc_issuer_url}/platform/${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}"
   # Strip the scheme for IAM OIDC condition keys. AWS uses the bare host as
   # the condition key prefix (e.g. "oidc.murmur.dev:aud").
-  oidc_host = replace(var.oidc_issuer_url, "https://", "")
+  oidc_host = replace(local.issuer_url, "https://", "")
 }
 
 # Resolve the configured IDs through AWS instead of constructing ARNs from the
@@ -31,11 +32,11 @@ data "aws_security_group" "placement" {
 # recognized CAs (added 2023) — the thumbprint is a belt-and-suspenders
 # fallback. See README for manual verification via openssl.
 data "tls_certificate" "oidc" {
-  url = var.oidc_issuer_url
+  url = local.issuer_url
 }
 
 resource "aws_iam_openid_connect_provider" "murmur" {
-  url            = var.oidc_issuer_url
+  url            = local.issuer_url
   client_id_list = [var.oidc_audience]
 
   # Pin the issuing CA fingerprints (intermediate + root), never the leaf.

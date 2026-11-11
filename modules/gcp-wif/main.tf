@@ -3,6 +3,10 @@ module "tenant_identity" {
   namespace = var.tenant_id
 }
 
+locals {
+  issuer_url = "${var.murmur_issuer_url}/platform/${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}"
+}
+
 # Workload Identity Federation module for single-tenant GCP authorization.
 #
 # This is the customer module — designed for a customer running it in their
@@ -42,10 +46,10 @@ resource "google_iam_workload_identity_pool_provider" "murmur" {
 
   # This pool belongs to one tenant. Reject other tenants before they can
   # exchange a subject token, and accept only the two roles this module binds.
-  attribute_condition = "assertion.iss == ${jsonencode(var.murmur_issuer_url)} && assertion.tenant == ${jsonencode("tenant:${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}")} && assertion.infrastructure_owner == 'customer' && assertion.role in ['read', 'write']"
+  attribute_condition = "assertion.iss == ${jsonencode(local.issuer_url)} && assertion.tenant == ${jsonencode("tenant:${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}")} && assertion.infrastructure_owner == 'customer' && assertion.role in ['read', 'write']"
 
   oidc {
-    issuer_uri = var.murmur_issuer_url
+    issuer_uri = local.issuer_url
   }
 }
 

@@ -103,6 +103,10 @@ run "hydration_can_find_abandoned_scratch_disks" {
 run "namespace_input_records_canonical_identity" {
   command = plan
   assert {
+    condition = one(google_iam_workload_identity_pool_provider.murmur.oidc).issuer_uri == "${var.murmur_issuer_url}/platform/github_app/123"
+    error_message = "The issuer must use the pinned immutable account."
+  }
+  assert {
     condition     = output.tenant_identity == { provider = "github_app", subject_id = "123" }
     error_message = "The namespace must resolve to the recorded immutable provider/subject pair."
   }
@@ -124,4 +128,11 @@ run "numeric_namespace_records_resolved_account" {
     condition     = output.tenant_identity == { provider = "github_app", subject_id = "456" }
     error_message = "tenant_id is always a provider/login namespace, including numeric logins."
   }
+}
+
+# A full tenant issuer would select a second, conflicting identity source.
+run "reject_tenant_path_as_origin" {
+  command = plan
+  variables { murmur_issuer_url = "https://oidc.murmur.dev/platform/github_app/999" }
+  expect_failures = [var.murmur_issuer_url]
 }

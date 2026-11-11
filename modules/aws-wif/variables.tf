@@ -22,9 +22,13 @@ variable "instance_profile_name" {
 }
 
 variable "oidc_issuer_url" {
-  description = "OIDC issuer URL (e.g. \"https://oidc.murmur.dev\"). The OIDC provider trusts tokens from this issuer, and the role trust policy requires the aud claim to match oidc_audience."
+  description = "HTTPS OIDC origin without a path or trailing slash. The module derives the customer issuer from the pinned immutable tenant identity."
   type        = string
   default     = "https://oidc.murmur.dev"
+  validation {
+    condition     = can(regex("^https://[^/?#@]+$", var.oidc_issuer_url))
+    error_message = "The OIDC origin must be HTTPS without a path, query, fragment, or user information."
+  }
 }
 
 variable "oidc_audience" {

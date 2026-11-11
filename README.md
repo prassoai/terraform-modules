@@ -124,3 +124,10 @@ issued before the issuer upgrade expire after one hour. Upgrade the module
 source pin to a release containing this change; old release tags still use
 namespace trust. Customers must explicitly authorize and run their own apply.
 Platform WIF policies and authority are unchanged.
+
+Customer issuer URLs are derived from the configured HTTPS origin and pinned
+identity: `<origin>/platform/<provider>/<subject_id>`. The public issuer URL
+inputs name the origin. Upgrading to tenant issuers changes the AWS OIDC provider
+URL (and therefore its ARN); operators must review the replacement and matching
+role trust updates together. GCP updates its provider issuer in place. Publish
+and verify tenant discovery and the provisioning JWKS before applying trust.

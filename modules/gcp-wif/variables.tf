@@ -9,9 +9,13 @@ variable "tenant_id" {
 }
 
 variable "murmur_issuer_url" {
-  description = "OIDC issuer URL. Override for staging/dev."
+  description = "HTTPS OIDC origin without a path or trailing slash. The module derives the customer issuer from the pinned immutable tenant identity."
   type        = string
   default     = "https://oidc.murmur.dev"
+  validation {
+    condition     = can(regex("^https://[^/?#@]+$", var.murmur_issuer_url))
+    error_message = "The OIDC origin must be HTTPS without a path, query, fragment, or user information."
+  }
 }
 
 variable "pool_id" {

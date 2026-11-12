@@ -22,3 +22,8 @@ output "tenant_identity" {
   description = "Pinned canonical provider and subject_id for this placement's cloud trust."
   value       = module.tenant_identity.identity
 }
+
+output "issuer_url" {
+  description = "Tenant-specific OIDC issuer trusted by this placement."
+  value       = local.issuer_url
+}

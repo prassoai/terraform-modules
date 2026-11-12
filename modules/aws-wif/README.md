@@ -113,7 +113,7 @@ calling module and cannot be derived dynamically from an input variable.
 | `role_name` | IAM role name for VM creation | `"murmur-vm-creator"` |
 | `readonly_role_name` | IAM role name for read-only operations | `"murmur-readonly"` |
 | `instance_profile_name` | Instance profile name for VM runtime | `"murmur-vm"` |
-| `oidc_issuer_url` | OIDC issuer URL | `"https://oidc.murmur.dev"` |
+| `issuer_base_url` | HTTPS origin; the pinned identity determines the issuer path | `"https://oidc.murmur.dev"` |
 | `oidc_audience` | Expected aud claim | `"sts.amazonaws.com"` |
 | `ec2_permissions_boundary_arn` | Optional permissions boundary for all roles | `null` |
 | `extra_policies` | Additional policy ARNs for the creator role | `[]` |
@@ -130,6 +130,7 @@ calling module and cannot be derived dynamically from an input variable.
 | `instance_profile_arn` | VM runtime instance profile ARN for EC2 RunInstances |
 | `vm_runtime_role_name` | VM runtime role name for per-environment policy attachments |
 | `oidc_provider_arn` | OIDC provider ARN for audit/trust reference |
+| `issuer_url` | Exact tenant-specific provisioning issuer |
 | `tenant_identity` | Pinned canonical `{provider, subject_id}` pair for cloud trust |
 | `placement` | **Sync-ready** Murmur Placement (protojson). `null` until `placement_name` is set |
 
@@ -211,3 +212,9 @@ is always looked up as a login, never interpreted as a subject ID.
 
 See the repository [rollout instructions](../../README.md#immutable-tenant-identity-and-rollout)
 for the intentional customer trust break and coordinated issuer/IAM upgrade.
+
+The configured `issuer_base_url` is an HTTPS origin without a path. Rename
+any earlier `oidc_issuer_url` setting to `issuer_base_url` when upgrading;
+keep `tenant_id` as the provider/login locator. The `issuer_url` output names
+the full tenant issuer derived from the pinned account. See the repository
+[rollout and explicit rebind instructions](../../README.md#immutable-tenant-identity-and-rollout).

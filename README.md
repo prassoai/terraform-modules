@@ -45,7 +45,7 @@ module "murmur_wif" {
 }
 ```
 
-Always pin to a tag (`?ref=<release-with-immutable-wif>`), never to a branch. The double slash
+Pin to a released tag or immutable commit, never to a branch. The double slash
 (`//`) separates the repository from the module subdirectory.
 
 > **Private-repo access.** While this repository is private, `terraform init`
@@ -131,3 +131,8 @@ inputs name the origin. Upgrading to tenant issuers changes the AWS OIDC provide
 URL (and therefore its ARN); operators must review the replacement and matching
 role trust updates together. GCP updates its provider issuer in place. Publish
 and verify tenant discovery and the provisioning JWKS before applying trust.
+
+Both customer cloud modules use `issuer_base_url` for the HTTPS origin and expose
+`issuer_url` for the resulting tenant issuer. Rename earlier `murmur_issuer_url`
+(GCP) or `oidc_issuer_url` (AWS) settings when upgrading. The `tenant_id`
+provider/login contract and the recorded owner remain independent of the origin.

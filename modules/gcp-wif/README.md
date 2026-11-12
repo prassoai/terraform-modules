@@ -65,7 +65,7 @@ module "murmur_wif" {
 | `project_id` | GCP project ID where VMs are created; use one [dedicated to murmur](#recommended-a-dedicated-project) (required) | — |
 | `tenant_id` | Murmur provider/login namespace (required) | — |
 | `vm_service_accounts` | VM runtime SA emails the WIF SA may attach (required) | — |
-| `murmur_issuer_url` | OIDC issuer URL | `"https://oidc.murmur.dev"` |
+| `issuer_base_url` | HTTPS origin; the pinned identity determines the issuer path | `"https://oidc.murmur.dev"` |
 | `pool_id` | WIF pool ID | `"murmur-pool"` |
 | `provider_id` | WIF provider ID | `"murmur-provider"` |
 | `service_account_id` | VM-creator service account ID | `"murmur-vm-creator"` |
@@ -81,6 +81,7 @@ module "murmur_wif" {
 | `service_account_email` | VM-creator SA email — use as `wif_service_account` in the Placement |
 | `readonly_service_account_email` | Read-only SA email — use as `wif_readonly_service_account` in the Placement |
 | `vm_service_accounts` | Echo of the runtime SA emails, each mapped to a ServiceAccountBinding |
+| `issuer_url` | Exact tenant-specific provisioning issuer |
 | `tenant_identity` | Pinned canonical `{provider, subject_id}` pair for cloud trust |
 | `placement` | **Sync-ready** Murmur Placement (protojson). `null` until `placement_name` is set |
 
@@ -182,3 +183,9 @@ is always looked up as a login, never interpreted as a subject ID.
 
 See the repository [rollout instructions](../../README.md#immutable-tenant-identity-and-rollout)
 for the intentional customer trust break and coordinated issuer/IAM upgrade.
+
+The configured `issuer_base_url` is an HTTPS origin without a path. Rename
+any earlier `murmur_issuer_url` setting to `issuer_base_url` when upgrading;
+keep `tenant_id` as the provider/login locator. The `issuer_url` output names
+the full tenant issuer derived from the pinned account. See the repository
+[rollout and explicit rebind instructions](../../README.md#immutable-tenant-identity-and-rollout).

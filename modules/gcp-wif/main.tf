@@ -4,7 +4,7 @@ module "tenant_identity" {
 }
 
 locals {
-  issuer_url = "${var.murmur_issuer_url}/platform/${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}"
+  issuer_url = "${var.issuer_base_url}/platform/${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}"
 }
 
 # Workload Identity Federation module for single-tenant GCP authorization.

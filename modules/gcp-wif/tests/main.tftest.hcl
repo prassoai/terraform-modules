@@ -103,7 +103,7 @@ run "hydration_can_find_abandoned_scratch_disks" {
 run "namespace_input_records_canonical_identity" {
   command = plan
   assert {
-    condition = one(google_iam_workload_identity_pool_provider.murmur.oidc).issuer_uri == "${var.murmur_issuer_url}/platform/github_app/123"
+    condition = one(google_iam_workload_identity_pool_provider.murmur.oidc).issuer_uri == "${var.issuer_base_url}/platform/github_app/123"
     error_message = "The issuer must use the pinned immutable account."
   }
   assert {
@@ -133,6 +133,20 @@ run "numeric_namespace_records_resolved_account" {
 # A full tenant issuer would select a second, conflicting identity source.
 run "reject_tenant_path_as_origin" {
   command = plan
-  variables { murmur_issuer_url = "https://oidc.murmur.dev/platform/github_app/999" }
-  expect_failures = [var.murmur_issuer_url]
+  variables { issuer_base_url = "https://oidc.murmur.dev/platform/github_app/999" }
+  expect_failures = [var.issuer_base_url]
+}
+
+# Origin overrides must keep the pinned owner and role separation.
+run "nonproduction_tenant_issuer" {
+  command = plan
+  variables { issuer_base_url = "https://oidc.example.invalid" }
+  assert {
+    condition = output.issuer_url == "https://oidc.example.invalid/platform/github_app/123"
+    error_message = "Changing the origin must retain the pinned tenant issuer path."
+  }
+  assert {
+    condition = one(google_iam_workload_identity_pool_provider.murmur.oidc).issuer_uri == output.issuer_url
+    error_message = "The issuer output must match the provider."
+  }
 }

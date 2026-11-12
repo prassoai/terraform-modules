@@ -64,7 +64,7 @@ run "vm_creator_cannot_change_instance_security_groups" {
 run "namespace_input_records_canonical_identity" {
   command = apply
   assert {
-    condition = aws_iam_openid_connect_provider.murmur.url == "${var.oidc_issuer_url}/platform/github_app/123"
+    condition = aws_iam_openid_connect_provider.murmur.url == "${var.issuer_base_url}/platform/github_app/123"
     error_message = "The issuer must use the pinned immutable account."
   }
   assert {
@@ -72,7 +72,7 @@ run "namespace_input_records_canonical_identity" {
     error_message = "The namespace must resolve to the recorded immutable provider/subject pair."
   }
   assert {
-    condition     = jsondecode(aws_iam_role.vm_creator.assume_role_policy).Statement[0].Condition.StringEquals["${replace(var.oidc_issuer_url, "https://", "")}/platform/github_app/123:sub"] == "write:tenant:github_app/123" && jsondecode(aws_iam_role.readonly.assume_role_policy).Statement[0].Condition.StringEquals["${replace(var.oidc_issuer_url, "https://", "")}/platform/github_app/123:sub"] == "read:tenant:github_app/123"
+    condition     = jsondecode(aws_iam_role.vm_creator.assume_role_policy).Statement[0].Condition.StringEquals["${replace(var.issuer_base_url, "https://", "")}/platform/github_app/123:sub"] == "write:tenant:github_app/123" && jsondecode(aws_iam_role.readonly.assume_role_policy).Statement[0].Condition.StringEquals["${replace(var.issuer_base_url, "https://", "")}/platform/github_app/123:sub"] == "read:tenant:github_app/123"
     error_message = "Both role trust policies must use the recorded immutable identity."
   }
 
@@ -99,6 +99,30 @@ run "numeric_namespace_records_resolved_account" {
 # A full tenant issuer would select a second, conflicting identity source.
 run "reject_tenant_path_as_origin" {
   command = plan
-  variables { oidc_issuer_url = "https://oidc.murmur.dev/platform/github_app/999" }
-  expect_failures = [var.oidc_issuer_url]
+  variables { issuer_base_url = "https://oidc.murmur.dev/platform/github_app/999" }
+  expect_failures = [var.issuer_base_url]
+}
+
+# Origin overrides must keep the pinned owner and role separation.
+run "nonproduction_tenant_issuer" {
+  command = plan
+  variables { issuer_base_url = "https://oidc.example.invalid" }
+  assert {
+    condition = output.issuer_url == "https://oidc.example.invalid/platform/github_app/123"
+    error_message = "Changing the origin must retain the pinned tenant issuer path."
+  }
+  assert {
+    condition = aws_iam_openid_connect_provider.murmur.url == output.issuer_url
+    error_message = "The issuer output must match the provider."
+  }
+  assert {
+    condition = jsondecode(aws_iam_role.vm_creator.assume_role_policy).Statement[0].Condition.StringEquals == {
+      "oidc.example.invalid/platform/github_app/123:aud" = "sts.amazonaws.com"
+      "oidc.example.invalid/platform/github_app/123:sub" = "write:tenant:github_app/123"
+    } && jsondecode(aws_iam_role.readonly.assume_role_policy).Statement[0].Condition.StringEquals == {
+      "oidc.example.invalid/platform/github_app/123:aud" = "sts.amazonaws.com"
+      "oidc.example.invalid/platform/github_app/123:sub" = "read:tenant:github_app/123"
+    }
+    error_message = "Both policies must keep their audience and exact role subjects under the overridden issuer."
+  }
 }

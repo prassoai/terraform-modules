@@ -7,10 +7,9 @@ module "tenant_identity" {
 # tenant_id is a login namespace resolved at the module input boundary.
 
 locals {
-  issuer_url = "${var.oidc_issuer_url}/platform/${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}"
-  # Strip the scheme for IAM OIDC condition keys. AWS uses the bare host as
-  # the condition key prefix (e.g. "oidc.murmur.dev:aud").
-  oidc_host = replace(local.issuer_url, "https://", "")
+  issuer_url = "${var.issuer_base_url}/platform/${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}"
+  # IAM condition keys include the host and complete tenant issuer path.
+  oidc_condition_prefix = replace(local.issuer_url, "https://", "")
 }
 
 # Resolve the configured IDs through AWS instead of constructing ARNs from the
@@ -80,8 +79,8 @@ resource "aws_iam_role" "vm_creator" {
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = {
-          "${local.oidc_host}:aud" = var.oidc_audience
-          "${local.oidc_host}:sub" = "write:tenant:${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}"
+          "${local.oidc_condition_prefix}:aud" = var.oidc_audience
+          "${local.oidc_condition_prefix}:sub" = "write:tenant:${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}"
         }
       }
     }]
@@ -111,8 +110,8 @@ resource "aws_iam_role" "readonly" {
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = {
-          "${local.oidc_host}:aud" = var.oidc_audience
-          "${local.oidc_host}:sub" = "read:tenant:${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}"
+          "${local.oidc_condition_prefix}:aud" = var.oidc_audience
+          "${local.oidc_condition_prefix}:sub" = "read:tenant:${module.tenant_identity.identity.provider}/${module.tenant_identity.identity.subject_id}"
         }
       }
     }]

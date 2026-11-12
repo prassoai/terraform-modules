@@ -13,17 +13,14 @@ module "murmur_read" {
   readonly_service_account_email = module.murmur_wif.readonly_service_account_email
 }
 
-output "placement" {
-  value = merge(module.murmur_wif.placement, {
-    gcp = merge(module.murmur_wif.placement.gcp, {
-      wif_readonly_provider_resource_name = module.murmur_read.wif_readonly_provider_resource_name
-    })
-  })
+output "wif_readonly_provider_resource_name" {
+  value = module.murmur_read.wif_readonly_provider_resource_name
 }
 ```
 
-Keep every existing placement field and grant. Apply read trust before syncing
-this output. Existing readers ignore the new field and use the unchanged
+Set `gcp.wif_readonly_provider_resource_name` on the existing placement from this
+output, preserving its other fields and grants. Apply read trust before syncing
+the output. Existing readers ignore the new field and use the unchanged
 provider and reader account; new readers use the read provider and the same
 account. Use distinct pool IDs if the default is taken. The account must be
 the existing read-only account, never the creator or a runtime account.

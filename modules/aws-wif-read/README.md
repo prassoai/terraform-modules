@@ -19,18 +19,18 @@ module "murmur_read" {
   # Copy the existing custom audience and permissions boundary, if configured.
 }
 
-output "placement" {
-  value = merge(module.murmur_wif.placement, {
-    aws = merge(module.murmur_wif.placement.aws, {
-      readonly_oidc_provider_arn = module.murmur_read.readonly_oidc_provider_arn
-      readonly_role_arn          = module.murmur_read.readonly_role_arn
-    })
-  })
+output "readonly_oidc_provider_arn" {
+  value = module.murmur_read.readonly_oidc_provider_arn
+}
+
+output "readonly_role_arn" {
+  value = module.murmur_read.readonly_role_arn
 }
 ```
 
 Apply read trust and verify both reader generations, then sync both fields
-together while preserving every other placement field and grant. Do not replace
+together: set `aws.readonly_oidc_provider_arn` and `aws.readonly_role_arn` on the
+existing placement from these outputs, preserving its other fields and grants. Do not replace
 the provisioning provider or move the existing reader role into this module.
 Use a unique `readonly_role_name` if the default is taken. Preserve customer
 permissions boundaries and verify organization policies allow the new role.

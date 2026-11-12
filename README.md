@@ -45,10 +45,8 @@ module "murmur_wif" {
 }
 ```
 
-Pin to a released tag or an immutable commit, never to a branch. The examples
-use the tenant-issuer implementation commit; tags through `v0.3.0` use the old
-root issuer and are incompatible with the new customer tokens. The double slash
-(`//`) separates the repository from the module subdirectory.
+Pin to a released tag or an immutable commit, never to a branch. The double
+slash (`//`) separates the repository from the module subdirectory.
 
 > **Private-repo access.** While this repository is private, `terraform init`
 > must be able to fetch it over git — configure a credential (e.g. an SSH key,

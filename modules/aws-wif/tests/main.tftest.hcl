@@ -1,12 +1,3 @@
-mock_provider "http" {
-  mock_data "http" {
-    defaults = {
-      status_code   = 200
-      response_body = "{\"issuer\":\"https://oidc.murmur.dev/platform/github_app/12345678\",\"jwks_uri\":\"https://oidc.murmur.dev/platform/.well-known/jwks.json\"}"
-    }
-  }
-}
-
 mock_provider "aws" {
   mock_data "aws_subnet" {
     defaults = { arn = "arn:aws:ec2:us-east-1:111111111111:subnet/subnet-123" }
@@ -63,12 +54,6 @@ run "vm_creator_cannot_change_instance_security_groups" {
 # AWS condition keys include the entire issuer path. Both roles must retain
 # their audience and role-specific subject checks under that exact prefix.
 run "tenant_specific_issuer" {
-  # An unreachable issuer must fail promptly during planning.
-  assert {
-    condition     = data.http.discovery[0].request_timeout_ms == 10000 && data.http.jwks[0].request_timeout_ms == 10000
-    error_message = "Discovery readiness must have a finite request timeout."
-  }
-
   command = apply
 
   assert {
@@ -95,24 +80,20 @@ run "tenant_specific_issuer" {
   }
 }
 
-# Non-production changes only the origin, including in the IAM condition keys.
+# A configured origin needs no live discovery or JWKS response. IAM
+# condition keys must still use the exact tenant issuer.
 run "nonproduction_tenant_issuer" {
-  override_data {
-    target = data.http.discovery
-    values = { status_code = 200, response_body = "{\"issuer\":\"https://oidc.nonprod.murmur.dev/platform/github_app/87654321\",\"jwks_uri\":\"https://oidc.nonprod.murmur.dev/platform/.well-known/jwks.json\"}" }
-  }
-
   command = apply
   variables {
-    issuer_base_url = "https://oidc.nonprod.murmur.dev"
+    issuer_base_url = "https://oidc.example.invalid"
     tenant_id       = "github_app/87654321"
   }
   assert {
-    condition     = aws_iam_openid_connect_provider.murmur.url == "https://oidc.nonprod.murmur.dev/platform/github_app/87654321"
+    condition     = aws_iam_openid_connect_provider.murmur.url == "https://oidc.example.invalid/platform/github_app/87654321"
     error_message = "An origin override must retain the tenant suffix."
   }
   assert {
-    condition     = jsondecode(aws_iam_role.vm_creator.assume_role_policy).Statement[0].Condition.StringEquals["oidc.nonprod.murmur.dev/platform/github_app/87654321:sub"] == "write:github_app/87654321"
+    condition     = jsondecode(aws_iam_role.vm_creator.assume_role_policy).Statement[0].Condition.StringEquals["oidc.example.invalid/platform/github_app/87654321:sub"] == "write:github_app/87654321"
     error_message = "IAM condition keys must follow the overridden origin and tenant."
   }
 }
@@ -129,101 +110,4 @@ run "reject_issuer_path" {
   command = plan
   variables { issuer_base_url = "https://oidc.murmur.dev/platform/github_app/12345678" }
   expect_failures = [var.issuer_base_url]
-}
-
-# Onboarding must stop before cloud trust is created if public discovery does
-# not advertise this exact tenant and its provisioning-only keyset.
-run "wrong_tenant_discovery" {
-  command = plan
-  override_data {
-    target = data.http.discovery
-    values = { status_code = 200, response_body = "{\"issuer\":\"https://oidc.murmur.dev/platform/github_app/99999999\",\"jwks_uri\":\"https://oidc.murmur.dev/platform/.well-known/jwks.json\"}" }
-  }
-  expect_failures = [aws_iam_openid_connect_provider.murmur]
-}
-
-# Onboarding must stop before cloud trust is created if public discovery does
-# not advertise this exact tenant and its provisioning-only keyset.
-run "wrong_family_keyset" {
-  command = plan
-  override_data {
-    target = data.http.discovery
-    values = { status_code = 200, response_body = "{\"issuer\":\"https://oidc.murmur.dev/platform/github_app/12345678\",\"jwks_uri\":\"https://oidc.murmur.dev/agents/.well-known/jwks.json\"}" }
-  }
-  expect_failures = [aws_iam_openid_connect_provider.murmur]
-}
-
-# Onboarding must stop before cloud trust is created if public discovery does
-# not advertise this exact tenant and its provisioning-only keyset.
-run "malformed_discovery" {
-  command = plan
-  override_data {
-    target = data.http.discovery
-    values = { status_code = 200, response_body = "not-json" }
-  }
-  expect_failures = [aws_iam_openid_connect_provider.murmur]
-}
-
-override_data {
-  target = data.http.jwks
-  values = {
-    status_code   = 200
-    response_body = "{\"keys\":[{\"kty\":\"RSA\",\"alg\":\"RS256\",\"use\":\"sig\",\"kid\":\"1\",\"n\":\"test-modulus\",\"e\":\"AQAB\"}]}"
-  }
-}
-
-# A published discovery document cannot establish readiness before its signing
-# keys exist. Fail before replacing customer trust with an unusable provider.
-run "empty_signing_keyset" {
-  command = plan
-  override_data {
-    target = data.http.jwks
-    values = { status_code = 200, response_body = "{\"keys\":[]}" }
-  }
-  expect_failures = [aws_iam_openid_connect_provider.murmur]
-}
-
-# Disabling readiness must remove both HTTP lookups so maintenance and teardown
-# can proceed even if discovery is gone or its host cannot be reached.
-run "maintenance_without_oidc_readiness" {
-  command = apply
-  variables { validate_oidc_readiness = false }
-  override_data {
-    target = data.http.discovery
-    values = { status_code = 404, response_body = "not-found" }
-  }
-  override_data {
-    target = data.http.jwks
-    values = { status_code = 404, response_body = "not-found" }
-  }
-  assert {
-    condition     = length(data.http.discovery) == 0 && length(data.http.jwks) == 0
-    error_message = "Disabled readiness must not issue HTTP requests."
-  }
-  assert {
-    condition     = output.issuer_url == "https://oidc.murmur.dev/platform/github_app/12345678"
-    error_message = "Disabling readiness must not change the tenant trust boundary."
-  }
-}
-
-# Readiness must reject unusable or unsupported key documents, not merely a
-# successful HTTP response, before customer cloud trust is changed.
-run "malformed_signing_keyset" {
-  command = plan
-  override_data {
-    target = data.http.jwks
-    values = { status_code = 200, response_body = "not-json" }
-  }
-  expect_failures = [aws_iam_openid_connect_provider.murmur]
-}
-
-# Readiness must reject unusable or unsupported key documents, not merely a
-# successful HTTP response, before customer cloud trust is changed.
-run "unsupported_signing_keyset" {
-  command = plan
-  override_data {
-    target = data.http.jwks
-    values = { status_code = 200, response_body = "{\"keys\":[{\"kty\":\"EC\",\"alg\":\"ES256\",\"use\":\"sig\",\"kid\":\"1\",\"n\":\"modulus\",\"e\":\"AQAB\"}]}" }
-  }
-  expect_failures = [aws_iam_openid_connect_provider.murmur]
 }

@@ -54,11 +54,3 @@ variable "extra_policies" {
   type        = list(string)
   default     = []
 }
-
-
-variable "validate_oidc_readiness" {
-  description = "Check public tenant discovery and provisioning JWKS during planning. Keep enabled for onboarding or issuer changes; disable for maintenance or teardown during an OIDC outage."
-  type        = bool
-  default     = true
-  nullable    = false
-}

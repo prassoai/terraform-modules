@@ -64,11 +64,3 @@ variable "vm_service_accounts" {
   description = "VM runtime service account emails. Each SA maps to a service_account_bindings entry on your Murmur Placement — the WIF SA needs roles/iam.serviceAccountUser to attach it at VM creation time. List all SAs that appear in the placement's service_account_bindings."
   type        = list(string)
 }
-
-
-variable "validate_oidc_readiness" {
-  description = "Check public tenant discovery and provisioning JWKS during planning. Keep enabled for onboarding or issuer changes; disable for maintenance or teardown during an OIDC outage."
-  type        = bool
-  default     = true
-  nullable    = false
-}

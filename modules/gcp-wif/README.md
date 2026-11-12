@@ -8,38 +8,22 @@ configuration in a customer's own GCP project. It is the GCP counterpart to
 that issuer and the immutable `tenant` claim before role-scoped service-account
 bindings allow `read` or `write` access.
 
-## Tenant-specific issuer
+## Your tenant ID
 
-Set `tenant_id = "github_app/<numeric-account-id>"` using the immutable GitHub
-account ID from `gh api orgs/<organization> --jq .id` (or `gh api users/<login> --jq .id` for a personal-account tenant). Do not use the organization login.
-The module trusts `${issuer_base_url}/platform/${tenant_id}`, for example
-`https://oidc.murmur.dev/platform/github_app/12345678`, and exports it as `issuer_url`.
-All tenant discovery documents reference the provisioning-only `/platform/.well-known/jwks.json` keyset.
+Set `tenant_id` to `github_app/<numeric-account-id>`. Find your GitHub
+organization's ID with:
 
-This is a breaking change: reapply the module with the numeric `tenant_id`.
-The old issuer override input is replaced by `issuer_base_url`, an HTTPS origin
-without a trailing slash. Existing root-issuer customer configurations stop
-accepting newly minted tokens; no legacy fallback is provided. GCP updates the OIDC provider and its attribute
-condition.
+```sh
+gh api orgs/your-org --jq .id
+```
 
-Terraform fetches `<issuer_url>/.well-known/openid-configuration` during
-planning and refuses to create trust unless it names the exact issuer and
-provisioning-only JWKS. It also fetches that JWKS and requires a nonempty RS256
-signing keyset. This requires Terraform 1.2+ and the `hashicorp/http`
-provider. Murmur reconciles discovery hourly for registered tenants; a newly
-activated tenant may wait until the next publication.
+For a personal account, use `gh api users/your-login --jq .id`.
+The module configures the issuer and trust policy for that account automatically.
 
-Use the readiness check as the migration gate: after deploying Murmur's new
-issuer support, run `terraform plan -out=murmur-wif.tfplan` with
-`validate_oidc_readiness = true` (the default). A successful plan confirms
-public discovery and key publication; review it, run
-`terraform apply murmur-wif.tfplan`, then resync the placement output to Murmur.
-Cloud token exchange still needs verification after applying.
-
-For routine maintenance or teardown during a publication outage, set
-`validate_oidc_readiness = false` in the module block before planning. This
-removes both readiness HTTP requests without changing the issuer or trust
-policy. Re-enable it before onboarding or changing the tenant/issuer.
+When upgrading from an earlier module version, replace the organization name
+in `tenant_id` with this numeric ID. If you set `murmur_issuer_url`, rename it
+to `issuer_base_url` and use only the HTTPS origin, such as
+`https://oidc.murmur.dev`. Apply the configuration and sync the placement again.
 
 ## Recommended: a dedicated project
 
@@ -95,7 +79,6 @@ module "murmur_wif" {
 | `tenant_id` | Immutable tenant address, e.g. `github_app/12345678` (required) | — |
 | `vm_service_accounts` | VM runtime SA emails the WIF SA may attach (required) | — |
 | `issuer_base_url` | OIDC HTTPS origin (tenant ID is appended) | `"https://oidc.murmur.dev"` |
-| `validate_oidc_readiness` | Check discovery and JWKS during planning; disable for maintenance/teardown during outages | `true` |
 | `pool_id` | WIF pool ID | `"murmur-pool"` |
 | `provider_id` | WIF provider ID | `"murmur-provider"` |
 | `service_account_id` | VM-creator service account ID | `"murmur-vm-creator"` |

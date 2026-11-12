@@ -68,3 +68,13 @@ moving the `?ref=`.
 |--------|-------|---------|
 | [`gcp-wif`](modules/gcp-wif/) | GCP | Single-tenant WIF pool, provider, service accounts, and IAM that let exactly one Murmur tenant create VMs in the customer's project. |
 | [`aws-wif`](modules/aws-wif/) | AWS | Single-tenant OIDC provider and IAM roles that let exactly one Murmur tenant manage EC2 instances in the customer's account. |
+
+
+## Additive read-issuer migration
+
+[gcp-wif-read](modules/gcp-wif-read/) and
+[aws-wif-read](modules/aws-wif-read/) add separate read-family trust beside an
+existing pinned provisioning module. They preserve provisioning resources and
+legacy reader trust; their outputs update only the placement's read-trust
+fields. Follow each module's prerequisites and rollout instructions. Adding
+these module interfaces is additive; existing module interfaces do not change.

@@ -9,9 +9,10 @@
 # └─────────────────────────────────────────────────────────────────────────────┘
 
 locals {
-  # Strip the scheme for IAM OIDC condition keys. AWS uses the bare host as
-  # the condition key prefix (e.g. "oidc.murmur.dev:aud").
-  oidc_host = replace(var.oidc_issuer_url, "https://", "")
+  issuer_url = "${var.issuer_base_url}/platform/${var.tenant_id}"
+  # Strip the scheme for IAM OIDC condition keys. AWS uses the host AND tenant path
+  # as the condition key prefix (e.g. "oidc.murmur.dev/platform/github_app/12345678:aud").
+  oidc_condition_prefix = replace(local.issuer_url, "https://", "")
 }
 
 # Resolve the configured IDs through AWS instead of constructing ARNs from the
@@ -33,11 +34,11 @@ data "aws_security_group" "placement" {
 # recognized CAs (added 2023) — the thumbprint is a belt-and-suspenders
 # fallback. See README for manual verification via openssl.
 data "tls_certificate" "oidc" {
-  url = var.oidc_issuer_url
+  url = local.issuer_url
 }
 
 resource "aws_iam_openid_connect_provider" "murmur" {
-  url            = var.oidc_issuer_url
+  url            = local.issuer_url
   client_id_list = [var.oidc_audience]
 
   # Pin the issuing CA fingerprints (intermediate + root), never the leaf.
@@ -65,7 +66,7 @@ resource "aws_iam_openid_connect_provider" "murmur" {
 #
 # AWS IAM trust policies can only condition on "sub" and "aud" — not custom
 # claims like "role". Murmur encodes the role in the sub claim as
-# "{role}:{tenant}" (e.g. "write:github_app/acme"). The trust uses
+# "{role}:{tenant}" (e.g. "write:github_app/12345678"). The trust uses
 # StringEquals with the exact sub value for single-tenant + role scoping.
 resource "aws_iam_role" "vm_creator" {
   name                 = var.role_name
@@ -81,8 +82,8 @@ resource "aws_iam_role" "vm_creator" {
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = {
-          "${local.oidc_host}:aud" = var.oidc_audience
-          "${local.oidc_host}:sub" = "write:${var.tenant_id}"
+          "${local.oidc_condition_prefix}:aud" = var.oidc_audience
+          "${local.oidc_condition_prefix}:sub" = "write:${var.tenant_id}"
         }
       }
     }]
@@ -112,8 +113,8 @@ resource "aws_iam_role" "readonly" {
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = {
-          "${local.oidc_host}:aud" = var.oidc_audience
-          "${local.oidc_host}:sub" = "read:${var.tenant_id}"
+          "${local.oidc_condition_prefix}:aud" = var.oidc_audience
+          "${local.oidc_condition_prefix}:sub" = "read:${var.tenant_id}"
         }
       }
     }]

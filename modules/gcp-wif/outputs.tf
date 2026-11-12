@@ -17,3 +17,8 @@ output "vm_service_accounts" {
   description = "VM runtime service account emails. Each maps to a ServiceAccountBinding on the Placement with grant-scoped access control."
   value       = var.vm_service_accounts
 }
+
+output "issuer_url" {
+  description = "Tenant-specific OIDC issuer trusted by this placement."
+  value       = local.issuer_url
+}

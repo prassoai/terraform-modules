@@ -22,15 +22,15 @@ terraform-modules/
 
 ## Consuming a module
 
-Modules are consumed via a **git source**, pinned to a release tag with
+Modules are consumed via a **git source**, pinned to a release tag or immutable commit with
 `?ref=<tag>` — this repo is **not** published to the Terraform Registry.
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=v0.1.0"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=f1825c3352f1955715344becbc2aafcda0728738"
 
   project_id = "acme-murmur-vms"
-  tenant_id  = "github_app/acme"
+  tenant_id  = "github_app/12345678"
   vm_service_accounts = [
     "murmur-vm@acme-murmur-vms.iam.gserviceaccount.com",
   ]
@@ -39,14 +39,14 @@ module "murmur_wif" {
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=v0.1.0"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=f1825c3352f1955715344becbc2aafcda0728738"
 
-  tenant_id = "github_app/acme"
+  tenant_id = "github_app/12345678"
 }
 ```
 
-Always pin to a tag (`?ref=v0.1.0`), never to a branch. The double slash
-(`//`) separates the repository from the module subdirectory.
+Pin to a released tag or an immutable commit, never to a branch. The double
+slash (`//`) separates the repository from the module subdirectory.
 
 > **Private-repo access.** While this repository is private, `terraform init`
 > must be able to fetch it over git — configure a credential (e.g. an SSH key,
@@ -58,7 +58,8 @@ Always pin to a tag (`?ref=v0.1.0`), never to a branch. The double slash
 
 Releases are tagged `vMAJOR.MINOR.PATCH`. A module's public interface (its
 input variables and outputs) is the contract; breaking changes to that contract
-bump the major version. Consumers pin to a tag and upgrade deliberately by
+bump the major version. The tenant-specific issuer change requires the next
+major release; publish it after the corresponding Murmur backend is deployed. Consumers pin to a tag and upgrade deliberately by
 moving the `?ref=`.
 
 ## Modules

@@ -37,7 +37,7 @@ run "placement_no_oauth_scopes" {
 
 variables {
   project_id          = "customer-vms"
-  tenant_id           = "github_app/acme"
+  tenant_id           = "github_app/12345678"
   vm_service_accounts = ["murmur-vm@customer-vms.iam.gserviceaccount.com"]
 }
 
@@ -88,4 +88,51 @@ run "hydration_can_find_abandoned_scratch_disks" {
     condition     = contains(google_project_iam_custom_role.vm_lifecycle.permissions, "compute.disks.create")
     error_message = "Hydration creates the scratch disk it later deletes."
   }
+}
+
+# The provider must trust only the immutable tenant issuer, and retain tenant
+# and role checks. Sharing public signing keys must not merge tenant trust.
+run "tenant_specific_issuer" {
+  command = plan
+
+  assert {
+    condition     = google_iam_workload_identity_pool_provider.murmur.oidc[0].issuer_uri == "https://oidc.murmur.dev/platform/github_app/12345678"
+    error_message = "The provider must use the full tenant issuer."
+  }
+  assert {
+    condition     = google_iam_workload_identity_pool_provider.murmur.attribute_condition == "assertion.iss == \"https://oidc.murmur.dev/platform/github_app/12345678\" && assertion.tenant == \"github_app/12345678\" && assertion.role in ['read', 'write']"
+    error_message = "Trust must enforce the exact issuer, immutable tenant, and role."
+  }
+  assert {
+    condition     = output.issuer_url == "https://oidc.murmur.dev/platform/github_app/12345678"
+    error_message = "The issuer output must match the provider."
+  }
+}
+
+# A configured origin needs no live discovery or JWKS response. The provider
+# must still trust only the specified tenant.
+run "nonproduction_tenant_issuer" {
+  command = plan
+  variables {
+    issuer_base_url = "https://oidc.example.invalid"
+    tenant_id       = "github_app/87654321"
+  }
+  assert {
+    condition     = google_iam_workload_identity_pool_provider.murmur.oidc[0].issuer_uri == "https://oidc.example.invalid/platform/github_app/87654321"
+    error_message = "An origin override must retain the immutable tenant suffix."
+  }
+}
+
+# A mutable login must fail at plan time, not silently trust the wrong issuer.
+run "reject_mutable_tenant_login" {
+  command = plan
+  variables { tenant_id = "github_app/acme" }
+  expect_failures = [var.tenant_id]
+}
+
+# An origin containing a path would append a second tenant suffix.
+run "reject_issuer_path" {
+  command = plan
+  variables { issuer_base_url = "https://oidc.murmur.dev/platform/github_app/12345678" }
+  expect_failures = [var.issuer_base_url]
 }

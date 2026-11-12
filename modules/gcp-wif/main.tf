@@ -4,8 +4,8 @@
 # own GCP project. It creates a WIF pool, OIDC provider, service account,
 # and IAM bindings that allow exactly ONE Murmur tenant to create VMs in
 # the target project. The provider accepts only OIDC tokens carrying the
-# configured tenant claim, and service-account bindings select the required
-# read or write role.
+# tenant-specific issuer and immutable tenant claim. Service-account bindings
+# select the required read or write role.
 #
 # VM runtime identity: each VM runs as a GCE service account listed in
 # var.vm_service_accounts. These SAs map to the service_account_bindings on
@@ -15,6 +15,10 @@
 # creation time.
 #
 # Consume via git source pinned to a release tag — see the repo README.
+
+locals {
+  issuer_url = "${var.issuer_base_url}/platform/${var.tenant_id}"
+}
 
 resource "google_iam_workload_identity_pool" "murmur" {
   project                   = var.project_id
@@ -37,10 +41,10 @@ resource "google_iam_workload_identity_pool_provider" "murmur" {
 
   # This pool belongs to one tenant. Reject other tenants before they can
   # exchange a subject token, and accept only the two roles this module binds.
-  attribute_condition = "assertion.iss == ${jsonencode(var.murmur_issuer_url)} && assertion.tenant == ${jsonencode(var.tenant_id)} && assertion.role in ['read', 'write']"
+  attribute_condition = "assertion.iss == ${jsonencode(local.issuer_url)} && assertion.tenant == ${jsonencode(var.tenant_id)} && assertion.role in ['read', 'write']"
 
   oidc {
-    issuer_uri = var.murmur_issuer_url
+    issuer_uri = local.issuer_url
   }
 }
 

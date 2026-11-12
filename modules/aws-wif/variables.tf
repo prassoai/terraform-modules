@@ -1,10 +1,10 @@
 variable "tenant_id" {
-  description = "Murmur tenant identity namespace (e.g. \"github_app/acme\"). The trust policy scopes access to exactly this tenant. Obtained from `murmur tenant whoami` or the dashboard."
+  description = "Immutable Murmur tenant address (e.g. github_app/12345678), using the numeric GitHub account ID, never its login."
   type        = string
 
   validation {
-    condition     = length(var.tenant_id) > 0
-    error_message = "tenant_id must not be empty."
+    condition     = can(regex("^github_app/[1-9][0-9]*$", var.tenant_id))
+    error_message = "tenant_id must be github_app/<numeric GitHub account ID>, not an organization login."
   }
 }
 
@@ -26,10 +26,15 @@ variable "instance_profile_name" {
   default     = "murmur-vm"
 }
 
-variable "oidc_issuer_url" {
-  description = "OIDC issuer URL (e.g. \"https://oidc.murmur.dev\"). The OIDC provider trusts tokens from this issuer, and the role trust policy requires the aud claim to match oidc_audience."
+variable "issuer_base_url" {
+  description = "OIDC HTTPS origin. The module appends /platform/<tenant_id>; override the origin for non-production."
   type        = string
   default     = "https://oidc.murmur.dev"
+
+  validation {
+    condition     = can(regex("^https://[^/?#@[:space:]]+$", var.issuer_base_url))
+    error_message = "issuer_base_url must be an HTTPS origin without a path, query, fragment, or trailing slash."
+  }
 }
 
 variable "oidc_audience" {

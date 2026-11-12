@@ -22,3 +22,8 @@ output "oidc_provider_arn" {
   description = "ARN of the IAM OIDC provider. For audit and trust reference."
   value       = aws_iam_openid_connect_provider.murmur.arn
 }
+
+output "issuer_url" {
+  description = "Tenant-specific OIDC issuer trusted by this placement."
+  value       = local.issuer_url
+}

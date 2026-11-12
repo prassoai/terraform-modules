@@ -106,7 +106,7 @@ provider "aws" {
 }
 
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=main"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=f1825c3352f1955715344becbc2aafcda0728738"
   providers = {
     aws = aws.murmur_placement
   }
@@ -158,7 +158,7 @@ CLI:
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=d45abf34c60ecac39266fb4c6468edcde7a24fef"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=f1825c3352f1955715344becbc2aafcda0728738"
 
   tenant_id = "github_app/12345678"
   # ... existing role/profile/oidc inputs ...
@@ -168,6 +168,10 @@ module "murmur_wif" {
   placement_vpc_id            = "vpc-0abc123"
   placement_subnet_ids        = ["subnet-0aaa", "subnet-0bbb"]
   placement_security_group_id = "sg-0def456"
+}
+
+output "placement" {
+  value = module.murmur_wif.placement
 }
 ```
 

@@ -58,7 +58,7 @@ the dedicated project is the recommended route.
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=d45abf34c60ecac39266fb4c6468edcde7a24fef"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=f1825c3352f1955715344becbc2aafcda0728738"
 
   project_id = "acme-murmur-vms"
   tenant_id  = "github_app/12345678"
@@ -105,7 +105,7 @@ CLI:
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=d45abf34c60ecac39266fb4c6468edcde7a24fef"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=f1825c3352f1955715344becbc2aafcda0728738"
 
   project_id          = "acme-murmur-vms"
   tenant_id           = "github_app/12345678"
@@ -114,6 +114,10 @@ module "murmur_wif" {
   placement_name   = "customer-gcp-east"   # must not start with "murmur-"
   placement_zones  = ["us-east1-b", "us-east1-c"]
   placement_subnet = "projects/acme-murmur-vms/regions/us-east1/subnetworks/agents"
+}
+
+output "placement" {
+  value = module.murmur_wif.placement
 }
 ```
 

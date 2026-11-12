@@ -27,7 +27,7 @@ Modules are consumed via a **git source**, pinned to a release tag or immutable 
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=d45abf34c60ecac39266fb4c6468edcde7a24fef"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=f1825c3352f1955715344becbc2aafcda0728738"
 
   project_id = "acme-murmur-vms"
   tenant_id  = "github_app/12345678"
@@ -39,7 +39,7 @@ module "murmur_wif" {
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=d45abf34c60ecac39266fb4c6468edcde7a24fef"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/aws-wif?ref=f1825c3352f1955715344becbc2aafcda0728738"
 
   tenant_id = "github_app/12345678"
 }

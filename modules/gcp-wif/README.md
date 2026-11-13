@@ -94,7 +94,7 @@ CLI:
 
 ```hcl
 module "murmur_wif" {
-  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=v0.2.0"
+  source = "git::https://github.com/prassoai/terraform-modules.git//modules/gcp-wif?ref=<release-with-immutable-wif>"
 
   project_id          = "acme-murmur-vms"
   tenant_id           = "github_app/acme"
@@ -103,6 +103,10 @@ module "murmur_wif" {
   placement_name   = "customer-gcp-east"   # must not start with "murmur-"
   placement_zones  = ["us-east1-b", "us-east1-c"]
   placement_subnet = "projects/acme-murmur-vms/regions/us-east1/subnetworks/agents"
+}
+
+output "placement" {
+  value = module.murmur_wif.placement
 }
 ```
 

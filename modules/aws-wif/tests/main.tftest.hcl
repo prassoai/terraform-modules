@@ -84,7 +84,7 @@ run "numeric_namespace_records_resolved_account" {
   plan_options { replace = [module.tenant_identity.terraform_data.identity] }
   variables { tenant_id = "github_app/123" }
   override_data {
-    target = module.tenant_identity.data.http.account
+    target = module.tenant_identity.data.http.account[0]
     values = {
       status_code   = 200
       response_body = "{\"id\":456,\"type\":\"Organization\"}"

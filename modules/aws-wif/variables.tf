@@ -1,6 +1,16 @@
 variable "tenant_id" {
-  description = "Murmur provider/login namespace (e.g. github_app/acme), resolved through GitHub to an immutable account for cloud trust. Numeric logins are looked up, never interpreted as subject IDs. Supports github_app and github_oauth."
+  description = "Murmur provider/login namespace (e.g. github_app/acme), resolved through GitHub to an immutable account for cloud trust. Numeric logins are looked up, never interpreted as subject IDs. Supports github_app and github_oauth. Set exactly one of tenant_id or tenant."
   type        = string
+  default     = null
+}
+
+variable "tenant" {
+  description = "Immutable tenant identity supplied without lookup. Set exactly one of tenant or tenant_id. Changing the pinned owner requires explicit replacement of the identity record."
+  type = object({
+    provider   = string
+    subject_id = string
+  })
+  default = null
 }
 
 variable "role_name" {

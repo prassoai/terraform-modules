@@ -63,7 +63,8 @@ module "murmur_wif" {
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `project_id` | GCP project ID where VMs are created; use one [dedicated to murmur](#recommended-a-dedicated-project) (required) | — |
-| `tenant_id` | Murmur provider/login namespace (required) | — |
+| `tenant_id` | Provider/login locator; resolved through GitHub. Set exactly one of `tenant_id` or `tenant` | `null` |
+| `tenant` | `{provider, subject_id}` object recorded without lookup; set exactly one identity input | `null` |
 | `vm_service_accounts` | VM runtime SA emails the WIF SA may attach (required) | — |
 | `issuer_base_url` | HTTPS origin; the pinned identity determines the issuer path | `"https://oidc.murmur.dev"` |
 | `pool_id` | WIF pool ID | `"murmur-pool"` |
@@ -189,3 +190,22 @@ any earlier `murmur_issuer_url` setting to `issuer_base_url` when upgrading;
 keep `tenant_id` as the provider/login locator. The `issuer_url` output names
 the full tenant issuer derived from the pinned account. See the repository
 [rollout and explicit rebind instructions](../../README.md#immutable-tenant-identity-and-rollout).
+
+## Supply an immutable identity without lookup
+
+Instead of `tenant_id`, set:
+
+```hcl
+tenant = {
+  provider   = "github_app"
+  subject_id = "12345678"
+}
+```
+
+Omit `tenant_id` (or set it to `null`). The provider and canonical positive
+numeric subject ID are recorded as supplied; no GitHub request is made for
+this form, including on refresh. Verify the pair independently. Both forms
+pin the same `tenant_identity` and use identical cloud trust. Changing the
+provider or subject still requires a reviewed explicit replacement of the
+identity record; changing inputs alone cannot rebind trust. Switching forms
+for the same owner is allowed. See the repository rollout/rebind instructions.

@@ -29,7 +29,7 @@ run "renamed_account" {
 run "reassigned_login" {
   command = plan
   override_data {
-    target = data.http.account
+    target = data.http.account[0]
     values = {
       status_code   = 200
       response_body = "{\"id\":456,\"type\":\"Organization\"}"
@@ -45,7 +45,7 @@ run "invalid_locator" {
 run "account_lookup_failed" {
   command = plan
   override_data {
-    target = data.http.account
+    target = data.http.account[0]
     values = {
       status_code   = 404
       response_body = "{\"message\":\"Not Found\"}"
@@ -56,7 +56,7 @@ run "account_lookup_failed" {
 run "invalid_subject" {
   command = plan
   override_data {
-    target = data.http.account
+    target = data.http.account[0]
     values = {
       status_code   = 200
       response_body = "{\"id\":0,\"type\":\"Organization\"}"
@@ -71,7 +71,7 @@ run "numeric_login_is_resolved" {
   plan_options { replace = [terraform_data.identity] }
   variables { namespace = "github_app/123" }
   override_data {
-    target = data.http.account
+    target = data.http.account[0]
     values = {
       status_code   = 200
       response_body = "{\"id\":456,\"type\":\"Organization\"}"
@@ -89,7 +89,7 @@ run "personal_account" {
   plan_options { replace = [terraform_data.identity] }
   variables { namespace = "github_oauth/octocat" }
   override_data {
-    target = data.http.account
+    target = data.http.account[0]
     values = {
       status_code   = 200
       response_body = "{\"id\":789,\"type\":\"User\"}"
@@ -106,7 +106,7 @@ run "changed_locator_cannot_redirect_trust" {
   command = plan
   variables { namespace = "github_app/another-account" }
   override_data {
-    target = data.http.account
+    target = data.http.account[0]
     values = {
       status_code   = 200
       response_body = "{\"id\":456,\"type\":\"Organization\"}"
@@ -120,7 +120,7 @@ run "changed_provider_cannot_redirect_trust" {
   command = plan
   variables { namespace = "github_oauth/acme" }
   override_data {
-    target = data.http.account
+    target = data.http.account[0]
     values = {
       status_code   = 200
       response_body = "{\"id\":123,\"type\":\"User\"}"
@@ -143,7 +143,7 @@ run "explicit_rebind" {
   command = apply
   plan_options { replace = [terraform_data.identity] }
   override_data {
-    target = data.http.account
+    target = data.http.account[0]
     values = {
       status_code   = 200
       response_body = "{\"id\":456,\"type\":\"Organization\"}"
@@ -165,7 +165,7 @@ run "prior_owner_requires_another_rebind" {
 run "new_owner_remains_pinned" {
   command = plan
   override_data {
-    target = data.http.account
+    target = data.http.account[0]
     values = {
       status_code   = 200
       response_body = "{\"id\":456,\"type\":\"Organization\"}"

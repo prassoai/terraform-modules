@@ -1,6 +1,7 @@
 module "tenant_identity" {
   source    = "../internal/tenant-identity"
   namespace = var.tenant_id
+  tenant    = var.tenant
 }
 
 locals {

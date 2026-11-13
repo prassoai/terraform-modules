@@ -77,21 +77,40 @@ Requires Terraform 1.4 or later for the canonical identity record.
 its input boundary through GitHub's public account API, records the canonical
 `{provider, subject_id}` pair in its `tenant_identity` output, and uses only
 that identity for cloud trust. The shared resolver is an internal implementation
-helper, not an additional customer module or input contract. No subject ID
-transcription or extra resolver call is required in customer configuration.
+helper, not an additional customer module. No subject ID transcription or
+extra resolver call is required for namespace input.
 Even a numeric namespace segment is a login and must be resolved.
+
+Alternatively, supply an identity explicitly to either cloud module:
+
+```hcl
+tenant = {
+  provider   = "github_app"
+  subject_id = "12345678"
+}
+```
+
+Set exactly one of `tenant_id` or `tenant`; omit the other (or set it to `null`).
+The typed `tenant` object is recorded exactly as supplied, without a GitHub
+lookup, including during normal plan/refresh. Review its provider and canonical
+positive numeric subject ID independently before applying. A supplied identity
+is an assertion by the operator, not proof of account existence or membership.
+Both forms expose the same pinned `tenant_identity` output and use the same
+issuer, customer ownership, and read/write trust contract.
 
 Supported namespace providers are `github_app` and `github_oauth`. Unsupported
 providers, failed account lookups, and invalid provider metadata fail the plan.
-The first binding records and pins the resolved provider/subject pair. Review
+The first binding records and pins the resolved or supplied provider/subject pair. Review
 that identity against the intended Murmur tenant before its initial apply.
 Ordinary refreshes compare the locator's current owner to the pin and fail
 closed on a difference; they do not update trust. A rename is safe when the
 updated `tenant_id` resolves to the same pinned account. A reassigned login,
-changed locator, or provider change cannot redirect established trust.
+changed locator, or provider change cannot redirect established trust. Direct
+`tenant` edits also fail closed when they change the pinned provider or subject.
+Switching between input forms is allowed when both identify the same pinned owner.
 
 A different owner requires an explicit rebind. Pause operations, verify the
-new intended owner independently, update `tenant_id`, and generate a reviewed
+new intended owner independently, update the chosen `tenant_id` or `tenant`, and generate a reviewed
 plan that explicitly replaces only the module's canonical identity record:
 
 ```sh
@@ -102,8 +121,8 @@ Substitute the actual cloud module address (`module.murmur_wif` here). For
 both clouds, explicitly name both identity records with separate `-replace`
 options. Authorized operators may apply that reviewed plan after approval.
 Do not delete state or destroy IAM resources to bypass the pin. A normal
-plan/apply with only a different `tenant_id` must fail. This is an operational
-replacement of the binding record, not a second identity input contract.
+plan/apply that selects a different owner must fail for either input form.
+Explicit replacement records the newly resolved or supplied owner.
 
 Customer WIF encodes the pinned address as `tenant:provider/subject_id` in the
 `tenant` claim and GCP subject, and `read:tenant:provider/subject_id` or

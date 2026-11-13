@@ -109,7 +109,8 @@ calling module and cannot be derived dynamically from an input variable.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `tenant_id` | Murmur provider/login namespace (required) | — |
+| `tenant_id` | Provider/login locator; resolved through GitHub. Set exactly one of `tenant_id` or `tenant` | `null` |
+| `tenant` | `{provider, subject_id}` object recorded without lookup; set exactly one identity input | `null` |
 | `role_name` | IAM role name for VM creation | `"murmur-vm-creator"` |
 | `readonly_role_name` | IAM role name for read-only operations | `"murmur-readonly"` |
 | `instance_profile_name` | Instance profile name for VM runtime | `"murmur-vm"` |
@@ -218,3 +219,22 @@ any earlier `oidc_issuer_url` setting to `issuer_base_url` when upgrading;
 keep `tenant_id` as the provider/login locator. The `issuer_url` output names
 the full tenant issuer derived from the pinned account. See the repository
 [rollout and explicit rebind instructions](../../README.md#immutable-tenant-identity-and-rollout).
+
+## Supply an immutable identity without lookup
+
+Instead of `tenant_id`, set:
+
+```hcl
+tenant = {
+  provider   = "github_app"
+  subject_id = "12345678"
+}
+```
+
+Omit `tenant_id` (or set it to `null`). The provider and canonical positive
+numeric subject ID are recorded as supplied; no GitHub request is made for
+this form, including on refresh. Verify the pair independently. Both forms
+pin the same `tenant_identity` and use identical cloud trust. Changing the
+provider or subject still requires a reviewed explicit replacement of the
+identity record; changing inputs alone cannot rebind trust. Switching forms
+for the same owner is allowed. See the repository rollout/rebind instructions.

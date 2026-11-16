@@ -30,7 +30,12 @@ output "readonly_role_arn" {
 
 Apply read trust and verify both reader generations, then sync both fields
 together: set `aws.readonly_oidc_provider_arn` and `aws.readonly_role_arn` on the
-existing placement from these outputs, preserving its other fields and grants. Do not replace
+existing placement from these outputs, preserving its other fields and grants.
+`readonly_oidc_provider_arn` is a migration-only selector: while Murmur runs
+mixed readers (murmuration#14482) it tells the API to use the read issuer for
+this placement. The final reader (murmuration#14501) removes that placement
+field, because STS picks the provider from the token's issuer; final AWS reads
+need `readonly_role_arn` alone. Keep the output until then. Do not replace
 the provisioning provider or move the existing reader role into this module.
 Use a unique `readonly_role_name` if the default is taken. Preserve customer
 permissions boundaries and verify organization policies allow the new role.
@@ -44,23 +49,18 @@ source, inputs, resource addresses, creator policies or runtime identities.
 Prerequisites:
 
 - Murmur has published the separate read-family keyset and tenant discovery.
+  The module does not probe these endpoints; verify a successful read before cutover.
 - The separately reviewed customer provisioning-issuer migration is complete.
   This module does not perform that migration.
-- The API supports per-placement read-family selection (murmuration #14494).
+- The API supports per-placement read-family selection (murmuration#14482).
 - The reviewed Terraform plan shows only this new module's resources changing.
   Existing module addresses must be no-op. Apply first in nonproduction, then
   verify old and new read tokens can inspect the same placement.
 
 Pin these modules to a reviewed release or immutable commit. The examples
-deliberately require the operator to choose that pin. Planning checks the exact
-read issuer and family keyset with 10-second HTTP timeouts.
-For outage maintenance, set `oidc_ca_thumbprints` to the existing verified CA
-SHA-1 fingerprints, then set `validate_oidc_readiness = false`. Both HTTP
-readiness checks and TLS certificate discovery are then skipped; the configured
-fingerprints and exact issuer/subject/audience trust remain. Disabling readiness
-without explicit fingerprints fails the plan. Pin CA fingerprints, never the
-short-lived leaf certificate. The default still discovers CA fingerprints and
-checks discovery/JWKS; supplying fingerprints alone skips only TLS discovery.
+deliberately require the operator to choose that pin. Like `aws-wif`, the
+module reads the issuer's TLS chain during planning and pins only its CA
+fingerprints, never the short-lived leaf certificate.
 
 Keep old read trust during rollout: older pods and rollback still use it.
 Remove the API's write-key authority only after all placements have migrated

@@ -19,7 +19,9 @@ output "wif_readonly_provider_resource_name" {
 ```
 
 Set `gcp.wif_readonly_provider_resource_name` on the existing placement from this
-output, preserving its other fields and grants. Apply read trust before syncing
+output, preserving its other fields and grants. GCP reads keep needing this field
+after the final reader (murmuration#14501), because the token exchange names the
+provider. Apply read trust before syncing
 the output. Existing readers ignore the new field and use the unchanged
 provider and reader account; new readers use the read provider and the same
 account. Use distinct pool IDs if the default is taken. The account must be
@@ -32,18 +34,16 @@ source, inputs, resource addresses, creator policies or runtime identities.
 Prerequisites:
 
 - Murmur has published the separate read-family keyset and tenant discovery.
+  The module does not probe these endpoints; verify a successful read before cutover.
 - The separately reviewed customer provisioning-issuer migration is complete.
   This module does not perform that migration.
-- The API supports per-placement read-family selection (murmuration #14494).
+- The API supports per-placement read-family selection (murmuration#14482).
 - The reviewed Terraform plan shows only this new module's resources changing.
   Existing module addresses must be no-op. Apply first in nonproduction, then
   verify old and new read tokens can inspect the same placement.
 
 Pin these modules to a reviewed release or immutable commit. The examples
-deliberately require the operator to choose that pin. Planning checks the exact
-read issuer and family keyset with 10-second HTTP timeouts.
-`validate_oidc_readiness = false` permits maintenance or teardown during an
-issuer outage without changing any trust condition.
+deliberately require the operator to choose that pin.
 
 Keep old read trust during rollout: older pods and rollback still use it.
 Remove the API's write-key authority only after all placements have migrated

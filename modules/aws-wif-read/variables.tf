@@ -19,12 +19,6 @@ variable "issuer_base_url" {
   }
 }
 
-variable "validate_oidc_readiness" {
-  description = "Check public tenant discovery and read JWKS during planning. Disabling requires explicit oidc_ca_thumbprints and skips all issuer network lookups."
-  type        = bool
-  default     = true
-  nullable    = false
-}
 variable "provisioning_oidc_provider_arn" {
   description = "Existing tenant-specific provisioning OIDC provider ARN from aws-wif; read-only trust is retained for older readers and rollback."
   type        = string
@@ -43,17 +37,4 @@ variable "ec2_permissions_boundary_arn" {
   description = "Existing placement permissions boundary, if required by the customer account."
   type        = string
   default     = null
-}
-
-
-variable "oidc_ca_thumbprints" {
-  description = "Optional stable CA SHA-1 thumbprints, not leaf fingerprints. When supplied, skip TLS certificate discovery. Required when validate_oidc_readiness is false."
-  type        = list(string)
-  default     = []
-  nullable    = false
-
-  validation {
-    condition     = length(var.oidc_ca_thumbprints) <= 5 && alltrue([for fingerprint in var.oidc_ca_thumbprints : can(regex("^[0-9a-fA-F]{40}$", fingerprint))])
-    error_message = "oidc_ca_thumbprints must contain at most five 40-character hexadecimal CA SHA-1 fingerprints."
-  }
 }

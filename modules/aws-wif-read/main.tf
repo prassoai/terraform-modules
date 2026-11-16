@@ -6,60 +6,21 @@ locals {
   provisioning_issuer = "${var.issuer_base_url}/platform/${var.tenant_id}"
   provisioning_host   = replace(local.provisioning_issuer, "https://", "")
 }
-# Refuse trust creation until the public tenant discovery contract is ready.
-# This also catches a wrong environment or a document from the agents family.
-data "http" "discovery" {
-  count              = var.validate_oidc_readiness ? 1 : 0
-  request_timeout_ms = 10000
-  url                = "${local.issuer_url}/.well-known/openid-configuration"
-  request_headers    = { Accept = "application/json" }
-}
-
-# Probe the known family URL, never an unvalidated discovery-supplied URL.
-data "http" "jwks" {
-  count              = var.validate_oidc_readiness ? 1 : 0
-  request_timeout_ms = 10000
-  url                = "${var.issuer_base_url}/read/.well-known/jwks.json"
-  request_headers    = { Accept = "application/json" }
-}
-
 data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 data "aws_iam_openid_connect_provider" "provisioning" {
   arn = var.provisioning_oidc_provider_arn
 }
+# Pin the issuing CA fingerprints, never the short-lived leaf, as aws-wif does.
 data "tls_certificate" "oidc" {
-  count = length(var.oidc_ca_thumbprints) == 0 && var.validate_oidc_readiness ? 1 : 0
-  url   = local.issuer_url
+  url = local.issuer_url
 }
 resource "aws_iam_openid_connect_provider" "murmur_read" {
-  lifecycle {
-    precondition {
-      condition     = var.validate_oidc_readiness || length(var.oidc_ca_thumbprints) > 0
-      error_message = "Set oidc_ca_thumbprints to the existing verified CA fingerprints before disabling readiness checks; outage maintenance must not contact the issuer or silently remove its thumbprints."
-    }
-
-    precondition {
-      condition = !var.validate_oidc_readiness || try(
-        data.http.discovery[0].status_code == 200 &&
-        jsondecode(data.http.discovery[0].response_body).issuer == local.issuer_url &&
-        jsondecode(data.http.discovery[0].response_body).jwks_uri == "${var.issuer_base_url}/read/.well-known/jwks.json" &&
-        data.http.jwks[0].status_code == 200 &&
-        length(jsondecode(data.http.jwks[0].response_body).keys) > 0 &&
-        alltrue([for key in jsondecode(data.http.jwks[0].response_body).keys :
-          key.kty == "RSA" && key.alg == "RS256" && key.use == "sig" &&
-          length(key.kid) > 0 && length(key.n) > 0 && length(key.e) > 0
-        ]),
-        false,
-      )
-      error_message = "Tenant read OIDC is not ready. Discovery must name the exact issuer and read keyset, and JWKS must contain RS256 signing keys. Wait for Murmur publication before applying."
-    }
-  }
-
   url            = local.issuer_url
   client_id_list = [var.oidc_audience]
-  thumbprint_list = length(var.oidc_ca_thumbprints) > 0 ? var.oidc_ca_thumbprints : [
-    for cert in flatten(data.tls_certificate.oidc[*].certificates) : cert.sha1_fingerprint if cert.is_ca
+  thumbprint_list = [
+    for cert in data.tls_certificate.oidc.certificates : cert.sha1_fingerprint
+    if cert.is_ca
   ]
   tags = { ManagedBy = "terraform", Purpose = "murmur-read-customer" }
 }

@@ -19,12 +19,6 @@ variable "issuer_base_url" {
   }
 }
 
-variable "validate_oidc_readiness" {
-  description = "Check public tenant discovery and read JWKS during planning. Keep enabled for onboarding or issuer changes; disable for maintenance or teardown during an OIDC outage."
-  type        = bool
-  default     = true
-  nullable    = false
-}
 variable "project_id" {
   description = "Project containing the existing read-only service account."
   type        = string

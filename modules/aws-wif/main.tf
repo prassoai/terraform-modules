@@ -327,6 +327,8 @@ resource "aws_iam_role_policy" "ec2" {
         Action = [
           "ec2:DescribeInstances",
           "ec2:DescribeInstanceStatus",
+          # Ownership backfill must inventory detached as well as attached ENIs.
+          "ec2:DescribeNetworkInterfaces",
           # An instance type's RAM sizes the hibernation swap volume a VM
           # cannot sleep without, and the snapshot-storage meter that bills it.
           "ec2:DescribeInstanceTypes",

@@ -45,11 +45,9 @@ Every instance, volume, and network interface created by the role must carry
 `murmur=true` from creation. The role cannot perform lifecycle operations on
 customer resources that do not carry that tag.
 
-The VM-creator role can describe network interfaces across the account,
-including detached interfaces, for ownership inventory. Existing installations
-must upgrade their module revision and apply it in the customer account to
-receive this permission. Organization policies and permissions boundaries can
-still restrict the role.
+The VM-creator role can describe attached and detached network interfaces across
+the account, regardless of their tags. Organization policies and permissions
+boundaries can restrict this access.
 
 ## What it creates
 

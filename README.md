@@ -74,6 +74,7 @@ moving the `?ref=`.
 [gcp-wif-read](modules/gcp-wif-read/) and
 [aws-wif-read](modules/aws-wif-read/) add separate read-family trust beside an
 existing pinned provisioning module. They preserve provisioning resources and
-legacy reader trust; their outputs update only the placement's read-trust
-fields. Follow each module's prerequisites and rollout instructions. Adding
-these module interfaces is additive; existing module interfaces do not change.
+legacy reader trust; their outputs update only the placement's reader
+fields (the GCP read provider, the AWS reader role). Follow each module's
+prerequisites and rollout instructions. Adding these module interfaces is
+additive; existing module interfaces do not change.

@@ -19,13 +19,15 @@ output "wif_readonly_provider_resource_name" {
 ```
 
 Set `gcp.wif_readonly_provider_resource_name` on the existing placement from this
-output, preserving its other fields and grants. GCP reads keep needing this field
-after the final reader (murmuration#14501), because the token exchange names the
-provider. Apply read trust before syncing
-the output. Existing readers ignore the new field and use the unchanged
-provider and reader account; new readers use the read provider and the same
-account. Use distinct pool IDs if the default is taken. The account must be
-the existing read-only account, never the creator or a runtime account.
+output, preserving its other fields and grants. GCP reads need this field after
+the read-family cutover (murmuration#14501), because the token exchange names the
+provider. Apply read trust before setting it, and set it only once every Murmur
+API instance supports the field (murmuration#14482); an older instance drops it
+when it writes the placement. Readers before the cutover ignore the field and
+use the unchanged provider and reader account; after it they use the read
+provider and the same account. Use distinct pool IDs if the default is taken.
+The account must be the existing read-only account, never the creator or a
+runtime account.
 
 These are additive read-trust modules for WIF read/write key separation.
 Use them beside the existing pinned provisioning module. Do not change its
@@ -34,22 +36,21 @@ source, inputs, resource addresses, creator policies or runtime identities.
 Prerequisites:
 
 - Murmur has published the separate read-family keyset and tenant discovery.
-  The module does not probe these endpoints; verify a successful read before cutover.
+  The module does not probe these endpoints; verify publication separately.
+  A successful read with the old issuer does not verify the new read trust.
 - The separately reviewed customer provisioning-issuer migration is complete.
   This module does not perform that migration.
-- The API supports per-placement read-family selection (murmuration#14482).
 - The reviewed Terraform plan shows only this new module's resources changing.
-  Existing module addresses must be no-op. Apply first in nonproduction, then
-  verify old and new read tokens can inspect the same placement.
+  Existing module addresses must be no-op. Apply first in nonproduction.
 
 Pin these modules to a reviewed release or immutable commit. The examples
 deliberately require the operator to choose that pin.
 
 Keep old read trust during rollout: older pods and rollback still use it.
-Remove the API's write-key authority only after all placements have migrated
-and the platform closure checks pass. Reverting a placement's read fields is
-safe only while the API's legacy reader remains available. After closure,
-restore reads by repairing read trust.
+Remove the API's write-key authority only after every placement's read trust
+is in place and the platform closure checks pass. Before the cutover the field
+has no effect; after it, clearing the field stops the placement's reads. After
+closure, restore reads by repairing read trust.
 
 The commands below validate configuration and use mocked cloud providers.
 They do not create cloud resources or prove live STS exchange, effective IAM,
